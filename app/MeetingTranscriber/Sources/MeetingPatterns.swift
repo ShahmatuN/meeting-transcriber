@@ -12,7 +12,10 @@ struct AppMeetingPattern: Equatable {
     /// before recording starts, instead of auto-recording. Browser meetings set
     /// this (issue #503): the WebRTC power assertion that detects them fires for
     /// any WebRTC use, not just meetings, so a prompt is the false-positive
-    /// filter. Native desktop clients leave it false and keep auto-start.
+    /// filter. Native desktop clients leave it false and keep auto-start. The
+    /// flag stays true for a browser even with `autoRecordGoogleMeet` on: that
+    /// decision is taken per meeting in `WatchLoop+AutoRecord`, in front of
+    /// the gate this flag opens, so a call the policy declines still prompts.
     let requiresRecordingConsent: Bool
 
     init(

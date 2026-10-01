@@ -12,7 +12,12 @@ import Foundation
 /// prompt, exactly as a never-seen one does, because the WebRTC assertion is
 /// not meeting-exclusive (Google Meet holds it on a page you cannot even join).
 /// So "approved" and "unknown" are the same state as far as anything observable
-/// goes, and storing them apart would be bookkeeping that can only drift.
+/// goes, and storing them apart would be bookkeeping that can only drift. The
+/// one positive state that does carry behaviour is `AppSettings.autoRecordGoogleMeet`
+/// (`BrowserAutoRecordPolicy`): opt-in, Chrome only, and keyed on a Meet signal
+/// rather than on the app, so it is a setting rather than an entry here. The
+/// denial still wins over it: the detector drops a denied identity before the
+/// policy is asked.
 ///
 /// Entries are process names exactly as the power assertion reports them, and
 /// they are matched exactly: the detector matches process names that way, and a

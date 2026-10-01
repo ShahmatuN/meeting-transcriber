@@ -142,6 +142,16 @@ final class AppSettings {
         didSet { defaults.set(watchBrowserMeetings, forKey: "watchBrowserMeetings") }
     }
 
+    /// Record a Google Meet call in Chrome without the consent prompt, when a
+    /// running calendar event carries a Meet link or Chrome has a
+    /// `meet.google.com` call tab open (`BrowserAutoRecordPolicy`). Off by
+    /// default and honoured only with `watchBrowserMeetings`. The per-app
+    /// "positive state with behaviour attached" the consent design left room
+    /// for; the deny list still wins.
+    var autoRecordGoogleMeet: Bool {
+        didSet { defaults.set(autoRecordGoogleMeet, forKey: "autoRecordGoogleMeet") }
+    }
+
     /// Apps the user answered "Never for this app" about on a browser-meeting
     /// consent prompt (see `ConsentDenyList`). Starts empty: there is nothing
     /// to seed, because an app the user has approved is treated exactly like one
@@ -580,6 +590,7 @@ final class AppSettings {
         watchZoom = defaults.object(forKey: "watchZoom") as? Bool ?? true
         watchWebex = defaults.object(forKey: "watchWebex") as? Bool ?? true
         watchBrowserMeetings = defaults.object(forKey: "watchBrowserMeetings") as? Bool ?? false
+        autoRecordGoogleMeet = defaults.object(forKey: "autoRecordGoogleMeet") as? Bool ?? false
         consentDeniedApps = defaults.stringArray(forKey: "consentDeniedApps") ?? []
         watchWeChat = defaults.object(forKey: "watchWeChat") as? Bool ?? false
         watchTencentMeeting = defaults.object(forKey: "watchTencentMeeting") as? Bool ?? false

@@ -239,6 +239,8 @@ final class WatchingController {
                     notifier: notifier,
                     denyListStore: ConsentDenyListStore(settings: settings),
                     scheduledMeeting: { [calendar] in calendar?.scheduledMeeting(at: $0) },
+                    autoRecordEnabled: { [settings] in settings.watchBrowserMeetings && settings.autoRecordGoogleMeet },
+                    browserTabURLs: Self.browserTabURLProvider(),
                 )
 
                 attachStateChangeHandler(to: loop, notifyOnRecording: true)

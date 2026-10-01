@@ -81,6 +81,15 @@ class WatchLoop {
     /// seeds its participants. Defaults to "no calendar" (see `CalendarController`).
     let scheduledMeeting: (Date) -> ScheduledMeeting?
 
+    /// Whether a Google Meet call in Chrome may record without the consent
+    /// prompt (`AppSettings.autoRecordGoogleMeet` AND browser watching). Read
+    /// per detection. See `WatchLoop+AutoRecord`.
+    let autoRecordEnabled: () -> Bool
+    /// The open tab URLs of the named browser process, for the same decision.
+    /// Side-effectful and bounded by a timeout, so asked only when the policy
+    /// could say yes. Defaults to "no tabs".
+    let browserTabURLs: (String) async -> [URL]
+
     /// Suppresses re-prompting after a browser-meeting decline (issue #503).
     /// Internal so the consent gate can live in `WatchLoop+Consent.swift`.
     var consentPolicy: BrowserConsentPolicy
@@ -137,6 +146,8 @@ class WatchLoop {
         consentPolicy: BrowserConsentPolicy = BrowserConsentPolicy(),
         denyListStore: any ConsentDenyListStoring = InMemoryConsentDenyListStore(),
         scheduledMeeting: @escaping (Date) -> ScheduledMeeting? = { _ in nil },
+        autoRecordEnabled: @escaping () -> Bool = { false },
+        browserTabURLs: @escaping (String) async -> [URL] = { _ in [] },
     ) {
         self.detector = detector
         self.recorderFactory = recorderFactory
@@ -156,6 +167,8 @@ class WatchLoop {
         self.consentPolicy = consentPolicy
         self.denyListStore = denyListStore
         self.scheduledMeeting = scheduledMeeting
+        self.autoRecordEnabled = autoRecordEnabled
+        self.browserTabURLs = browserTabURLs
     }
 
     nonisolated static var defaultOutputDir: URL {
@@ -316,17 +329,24 @@ class WatchLoop {
             if let approved = takeApprovedConsentMeeting(), detector.isMeetingActive(approved) {
                 if await runMeeting(approved) { return }
             } else if let meeting = detector.checkOnce() {
-                // Browser meetings (issue #503) ask before recording; native
-                // meetings skip this (flag false). See WatchLoop+Consent.swift.
-                // Asking does NOT block this loop — that is the whole point:
-                // an unanswered prompt used to stop `checkOnce()` from running
+                // A Google Meet call the user opted into recording unasked
+                // (WatchLoop+AutoRecord) skips the prompt; the title it hands
+                // back is the calendar's or the Meet code's, and the calendar
+                // still wins inside handleMeeting. Otherwise browser meetings
+                // (issue #503) ask before recording and native meetings skip
+                // the gate (flag false), see WatchLoop+Consent.swift. Asking
+                // does NOT block this loop — that is the whole point: an
+                // unanswered prompt used to stop `checkOnce()` from running
                 // for a full minute, so a Teams or Zoom call starting in that
                 // window went unrecorded.
-                if requestConsentIfNeeded(for: meeting) {
+                if let title = await autoRecordTitle(for: meeting) {
+                    if await runMeeting(meeting.retitled(title)) { return }
+                } else if requestConsentIfNeeded(for: meeting) {
                     try? await sleepProvider(pollInterval)
                     continue
+                } else if await runMeeting(meeting) {
+                    return
                 }
-                if await runMeeting(meeting) { return }
             }
 
             try? await sleepProvider(pollInterval)
@@ -540,25 +560,6 @@ class WatchLoop {
         }
         if oldPhase != next.phase {
             onStateChange?(oldPhase, next.phase)
-        }
-    }
-
-    /// Strip app suffixes from meeting titles for cleaner display.
-    static func cleanTitle(_ title: String) -> String {
-        let suffixes = [" | Microsoft Teams", " - Zoom", " - Webex"]
-        for suffix in suffixes where title.hasSuffix(suffix) {
-            return String(title.dropLast(suffix.count))
-        }
-        return title
-    }
-
-    /// Map WatchLoop state to TranscriberState for compatibility with existing UI.
-    var transcriberState: TranscriberState {
-        switch state {
-        case .idle: .idle
-        case .watching: .watching
-        case .recording: .recording
-        case .error: .error
         }
     }
 }

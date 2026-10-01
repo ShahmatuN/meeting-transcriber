@@ -287,6 +287,14 @@ final class AppSettingsTests: XCTestCase {
         XCTAssertEqual(settings.watchApps, ["Microsoft Teams", "Zoom", "Webex", "Browser Meetings"])
     }
 
+    func testAutoRecordGoogleMeetDefaultsOffAndPersists() {
+        // Off by default: existing installs keep prompting for every browser
+        // meeting until the user opts this one call type in.
+        XCTAssertFalse(settings.autoRecordGoogleMeet)
+        settings.autoRecordGoogleMeet = true
+        XCTAssertTrue(AppSettings(defaults: defaults).autoRecordGoogleMeet)
+    }
+
     func testWatchBrowserMeetingsPersists() {
         settings.watchBrowserMeetings = true
         let fresh = AppSettings(defaults: defaults)

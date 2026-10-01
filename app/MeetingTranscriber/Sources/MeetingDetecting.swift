@@ -22,6 +22,16 @@ struct DetectedMeeting: Equatable {
         self.windowPID = windowPID
         self.detectedAt = detectedAt
     }
+
+    /// The same meeting under another title. Used when a signal outside the
+    /// detector (a calendar event, a Meet code) names the call better than
+    /// the window did; everything that identifies the meeting is kept.
+    func retitled(_ title: String) -> DetectedMeeting {
+        DetectedMeeting(
+            pattern: pattern, windowTitle: title, ownerName: ownerName,
+            windowPID: windowPID, detectedAt: detectedAt,
+        )
+    }
 }
 
 /// Protocol for meeting detection strategies.
