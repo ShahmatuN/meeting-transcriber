@@ -2,25 +2,28 @@
 # E2E test for the permission-health probes (issue #446 follow-up).
 #
 # Launches the dev .app and asserts, via the DebugRPCServer /state snapshot, that
-# the Screen Recording and Microphone permission probes report "healthy" on a
-# runner where those permissions are granted. This is a natural reproduction of
-# the #446 false-`.broken` bugs:
-#   - Screen Recording: granted, but the old window-title probe reported `.broken`
-#     when no foreign window title was readable (the default on recent macOS).
-#   - Microphone: granted (BlackHole 2ch is the runner's default input), but the
-#     old amplitude probe reported `.broken` because an idle input delivers
-#     silent buffers.
-# After the fix both must be "healthy" (the probes trust the system verdict /
-# buffer flow rather than an incidental signal).
+# the Microphone permission probe reports "healthy" on a runner where the grant
+# is held, and that the aggregate `isHealthy` is true. This is a natural
+# reproduction of the #446 false-`.broken` bug: the microphone is granted
+# (BlackHole 2ch is the runner's default input), but the old amplitude probe
+# reported `.broken` because an idle input delivers silent buffers. After the
+# fix it must be "healthy" (the probe trusts buffer flow, not an incidental
+# signal).
+#
+# Screen Recording is logged, not asserted. The grant is optional: it improves
+# meeting titles and nothing else, so a withheld grant must leave `isHealthy`
+# true (no badge, no notification) — that pair is what the aggregate assertion
+# below pins, whichever way the runner's grant happens to be set.
 #
 # What this covers:
 #   - PermissionHealthCheck.runLive() against real TCC + real audio hardware
 #   - PermissionStatus → RPC /state.permissionHealth wiring
-#   - The #446 fixes holding on the real (silent-input, granted) runner
+#   - The #446 fix holding on the real (silent-input, granted) runner
+#   - Screen Recording state never affecting the aggregate verdict
 #
-# Requires: granted Microphone + Screen Recording for the dev .app (see the
-# self-hosted runner setup in CLAUDE.md). Accessibility is logged, not asserted —
-# its grant is not part of the standard runner setup.
+# Requires: granted Microphone for the dev .app (see the self-hosted runner
+# setup in CLAUDE.md). Accessibility and Screen Recording are logged, not
+# asserted — neither grant is part of the standard runner setup.
 #
 # Usage: bash scripts/e2e-permission-health.sh [--no-build]
 
@@ -160,6 +163,7 @@ echo "▸ Waiting for the permission health check to run…"
 SR=""
 MIC=""
 AX=""
+HEALTHY=""
 STATE_JSON=""
 for _ in $(seq 1 40); do
     # Tolerate a transient fetch mid-poll: the loop exists to wait out
@@ -170,15 +174,15 @@ for _ in $(seq 1 40); do
         sleep 0.5
         continue
     }
-    read -r SR MIC AX < <(
+    read -r SR MIC AX HEALTHY < <(
         echo "$STATE_JSON" | jq -r \
-            '"\(.permissionHealth.screenRecording) \(.permissionHealth.microphone) \(.permissionHealth.accessibility)"'
+            '"\(.permissionHealth.screenRecording) \(.permissionHealth.microphone) \(.permissionHealth.accessibility) \(.permissionHealth.isHealthy)"'
     ) || true
     [ "$MIC" != "unknown" ] && break
     sleep 0.5
 done
 
-echo "▸ permissionHealth: screenRecording=$SR microphone=$MIC accessibility=$AX"
+echo "▸ permissionHealth: screenRecording=$SR microphone=$MIC accessibility=$AX isHealthy=$HEALTHY"
 
 # The launch environment actually arrived. Without this the lane cannot tell a
 # working `open --env` from a silently ignored one: `debugRPCEnabled` is left
@@ -209,36 +213,44 @@ done
 assert_app_alive "$BIN"
 
 
-# --- 6. Assert the #446-fixed probes report healthy ----------------------
+# --- 6. Assert the #446-fixed probe reports healthy -----------------------
 
 # A "broken" verdict here is a #446 regression (probe false-flagged a granted
 # permission). "denied" or "notDetermined" means either the app is being asked
-# about an identity the grants were not made against, or a grant really did
+# about an identity the grant was not made against, or the grant really did
 # lapse.
 #
 # The recording lanes are evidence about which, not proof. A microphone stuck at
 # notDetermined blocks `ensureMicrophoneAccess()` on the prompt and times the
 # first recording lane out; a DENIED one returns immediately and the lane fails
-# later, on the mic track carrying no signal. Screen Recording is weaker still:
-# the audio tap accepts either that grant or the separate audio-capture one, so
-# a host holding both could lose Screen Recording with every recording lane
-# staying green. Lanes green therefore says "suspect attribution first", not
-# "attribution, certainly".
+# later, on the mic track carrying no signal. Lanes green therefore says
+# "suspect attribution first", not "attribution, certainly".
+#
+# The aggregate is asserted alongside, and it is a different claim: with the
+# microphone healthy and Accessibility not part of the runner setup, `isHealthy`
+# is true exactly when Screen Recording is treated as the optional grant it is.
+# A runner that withholds it is therefore the more valuable configuration for
+# this line, not a misconfigured one.
 fail=false
-[ "$SR" = "healthy" ] || {
-    echo "  ✗ screenRecording expected 'healthy', got '$SR'" >&2
-    fail=true
-}
 [ "$MIC" = "healthy" ] || {
     echo "  ✗ microphone expected 'healthy', got '$MIC'" >&2
     fail=true
 }
+echo "  (screenRecording=$SR — informational, not asserted; the grant only improves titles)"
 echo "  (accessibility=$AX — informational, not asserted)"
+if [ "$AX" = "healthy" ] || [ "$AX" = "notDetermined" ]; then
+    [ "$HEALTHY" = "true" ] || {
+        echo "  ✗ isHealthy expected 'true' with microphone=$MIC accessibility=$AX, got '$HEALTHY' (screenRecording=$SR must not count)" >&2
+        fail=true
+    }
+else
+    echo "  (isHealthy=$HEALTHY — not asserted while accessibility=$AX is itself a reported problem)"
+fi
 
 if [ "$fail" = true ]; then
     echo "Full permissionHealth JSON:" >&2
     echo "$STATE_JSON" | jq .permissionHealth >&2 || true
-    die "permission probe not healthy: 'broken' = #446 regression; 'denied'/'notDetermined' = either the app was launched in a way TCC attributes elsewhere, or the grant lapsed on the runner (re-grant in the GUI session, see CLAUDE.md). Recording lanes green in the same run points at the first, but does not settle it for Screen Recording, which the audio tap can do without"
+    die "permission probe not healthy: 'broken' = #446 regression; 'denied'/'notDetermined' = either the app was launched in a way TCC attributes elsewhere, or the grant lapsed on the runner (re-grant in the GUI session, see CLAUDE.md). An isHealthy=false with microphone healthy means a Screen Recording state leaked back into the aggregate"
 fi
 
-echo "OK — Screen Recording + Microphone probes report healthy on the granted runner"
+echo "OK — Microphone probe healthy, aggregate healthy regardless of Screen Recording ($SR)"
