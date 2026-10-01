@@ -29,13 +29,13 @@ final class MeetingLibraryTests: XCTestCase {
     func testParseStripsStampAndShortID() throws {
         let parsed = try XCTUnwrap(MeetingRecord.parse(basename: "20261001_0949_microphone_recording_92dfa501"))
         XCTAssertEqual(parsed.slug, "microphone_recording")
-        XCTAssertEqual(parsed.date, localDate(2026, 10, 1, 9, 49))
+        XCTAssertEqual(parsed.date, try localDate(2026, 10, 1, 9, 49))
     }
 
     func testParseWithoutShortIDKeepsTheWholeSlug() throws {
         let parsed = try XCTUnwrap(MeetingRecord.parse(basename: "20260929_1500_devsync"))
         XCTAssertEqual(parsed.slug, "devsync")
-        XCTAssertEqual(parsed.date, localDate(2026, 9, 29, 15, 0))
+        XCTAssertEqual(parsed.date, try localDate(2026, 9, 29, 15, 0))
     }
 
     func testParseKeepsNonLatinSlugs() throws {
