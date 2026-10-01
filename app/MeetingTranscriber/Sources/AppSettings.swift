@@ -174,6 +174,23 @@ final class AppSettings {
         didSet { defaults.set(autoWatch, forKey: "autoWatch") }
     }
 
+    // MARK: - Calendar
+
+    /// Name recordings after the calendar event running at the time and offer
+    /// its attendees as speaker names (see `CalendarController`). Off by
+    /// default: turning it on is what asks macOS for calendar access.
+    var calendarIntegrationEnabled: Bool {
+        didSet { defaults.set(calendarIntegrationEnabled, forKey: "calendarIntegrationEnabled") }
+    }
+
+    /// `EKCalendar.calendarIdentifier`s to consider. Empty means every
+    /// calendar, so enabling the integration needs no further clicks; the
+    /// Settings checklist writes the explicit remaining set on the first
+    /// uncheck (`CalendarController.setCalendar`).
+    var calendarIDs: [String] {
+        didSet { defaults.set(calendarIDs, forKey: "calendarIDs") }
+    }
+
     // MARK: - Recording
 
     var pollInterval: Double {
@@ -569,6 +586,8 @@ final class AppSettings {
         watchFaceTime = defaults.object(forKey: "watchFaceTime") as? Bool ?? false
         watchWhatsApp = defaults.object(forKey: "watchWhatsApp") as? Bool ?? false
         autoWatch = defaults.object(forKey: "autoWatch") as? Bool ?? false
+        calendarIntegrationEnabled = defaults.object(forKey: "calendarIntegrationEnabled") as? Bool ?? false
+        calendarIDs = defaults.stringArray(forKey: "calendarIDs") ?? []
 
         pollInterval = defaults.object(forKey: "pollInterval") as? Double ?? 3.0
         endGrace = defaults.object(forKey: "endGrace") as? Double ?? 15.0

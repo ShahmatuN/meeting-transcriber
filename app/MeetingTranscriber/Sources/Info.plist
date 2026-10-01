@@ -30,6 +30,10 @@
     <string>Meeting Transcriber needs microphone access to record meeting audio for transcription.</string>
     <key>NSScreenCaptureUsageDescription</key>
     <string>Meeting Transcriber can optionally read window titles to name recordings after the meeting. Detection and audio capture do not need this.</string>
+    <key>NSCalendarsFullAccessUsageDescription</key>
+    <string>Meeting Transcriber reads the title and attendees of the calendar event running during a recording to name the recording and suggest speaker names. Nothing is written to your calendar.</string>
+    <key>NSCalendarsUsageDescription</key>
+    <string>Meeting Transcriber reads the title and attendees of the calendar event running during a recording to name the recording and suggest speaker names.</string>
     <key>NSAccessibilityUsageDescription</key>
     <string>Meeting Transcriber uses Accessibility to detect mute state and read meeting participants.</string>
 </dict>

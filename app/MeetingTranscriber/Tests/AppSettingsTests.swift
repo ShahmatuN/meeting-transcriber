@@ -293,6 +293,21 @@ final class AppSettingsTests: XCTestCase {
         XCTAssertTrue(fresh.watchBrowserMeetings)
     }
 
+    // MARK: - Calendar
+
+    func testCalendarIntegrationDefaultsOffWithEveryCalendar() {
+        XCTAssertFalse(settings.calendarIntegrationEnabled, "turning it on is what asks for calendar access")
+        XCTAssertEqual(settings.calendarIDs, [], "empty means every calendar")
+    }
+
+    func testCalendarSettingsPersist() {
+        settings.calendarIntegrationEnabled = true
+        settings.calendarIDs = ["work-id", "team-id"]
+        let fresh = AppSettings(defaults: defaults)
+        XCTAssertTrue(fresh.calendarIntegrationEnabled)
+        XCTAssertEqual(fresh.calendarIDs, ["work-id", "team-id"])
+    }
+
     // MARK: - Claude CLI
 
     #if !APPSTORE
