@@ -56,6 +56,27 @@
             XCTAssertTrue(health.isHealthy)
         }
 
+        // MARK: - Calendar
+
+        /// `/state.calendar` is how a driver confirms a recording was named from
+        /// the calendar without reading the output folder: enabled, the access
+        /// macOS granted, and the event the last detection matched.
+        @MainActor
+        func testCalendarStateIsReportedOnTheSnapshot() {
+            let state = makeRPCTestState()
+            let before = state.rpcStateSnapshot().calendar
+            XCTAssertFalse(before.enabled)
+            XCTAssertEqual(before.authorization, "notDetermined", "the null source has never been asked")
+            XCTAssertNil(before.lastMatchedEventID)
+
+            state.settings.calendarIntegrationEnabled = true
+            state.settings.calendarIDs = ["a", "b"]
+
+            let after = state.rpcStateSnapshot().calendar
+            XCTAssertTrue(after.enabled)
+            XCTAssertEqual(after.selectedCalendarCount, 2)
+        }
+
         // MARK: - Serialisation
 
         func testPermissionHealthSerialisesIntoSnapshotJSON() throws {

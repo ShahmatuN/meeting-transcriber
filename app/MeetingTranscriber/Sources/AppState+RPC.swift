@@ -83,6 +83,7 @@
                 lastJob: lastFinishedJobSnapshot(),
                 channelHealth: channelHealthSnapshot(),
                 permissionHealth: permissionHealthSnapshot(),
+                calendar: calendarSnapshot(),
                 liveCaptions: liveCaptionsSnapshot(),
                 watchState: watching.watchLoop?.state.rawValue,
                 pendingConsentApp: watching.watchLoop?.pendingConsentApp,
@@ -309,6 +310,16 @@
                 notificationsAlertStyle: visibility?.alertStyle.rpcValue ?? "unknown",
                 notificationsTimeSensitive: visibility?.timeSensitive.rpcValue ?? "unknown",
                 notificationsScheduledDelivery: visibility?.scheduledDelivery.rpcValue ?? "unknown",
+            )
+        }
+
+        /// Calendar integration state. Single-hop reads, like the siblings.
+        private func calendarSnapshot() -> RPCStateSnapshot.CalendarIntegration {
+            RPCStateSnapshot.CalendarIntegration(
+                enabled: calendar.isEnabled,
+                authorization: calendar.authorization.rpcValue,
+                selectedCalendarCount: settings.calendarIDs.count,
+                lastMatchedEventID: calendar.lastMatchedEventID,
             )
         }
 

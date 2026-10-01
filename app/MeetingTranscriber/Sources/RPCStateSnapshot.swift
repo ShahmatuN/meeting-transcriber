@@ -23,6 +23,11 @@
         /// check). E2E drivers poll this to assert the probes don't false-flag a
         /// granted permission (issue #446) without screenshotting the menu bar.
         let permissionHealth: PermissionHealth
+        /// Calendar integration state: whether it is on, what access macOS
+        /// granted, and the event the last detection matched. Lets a driver
+        /// confirm a recording was named from the calendar without reading
+        /// the output folder.
+        let calendar: CalendarIntegration
         /// Snapshot of the live-caption overlay state. E2E drivers poll
         /// `recentFinals.count > 0` to assert that the full live-transcription
         /// chain produced text without scraping the OSLog or screenshotting
@@ -247,6 +252,19 @@
             )
         }
 
+        struct CalendarIntegration: Codable {
+            let enabled: Bool
+            /// `CalendarAuthorization.rpcValue`, or "unknown" before `AppState` exists.
+            let authorization: String
+            /// How many calendars are explicitly selected; 0 means all of them.
+            let selectedCalendarCount: Int
+            let lastMatchedEventID: String?
+
+            static let unknown = Self(
+                enabled: false, authorization: "unknown", selectedCalendarCount: 0, lastMatchedEventID: nil,
+            )
+        }
+
         struct Notification: Codable {
             let title: String
             let body: String
@@ -460,6 +478,7 @@
             lastJob: LastJob? = nil,
             channelHealth: ChannelHealth = .inactive,
             permissionHealth: PermissionHealth = .unknown,
+            calendar: CalendarIntegration = .unknown,
             liveCaptions: LiveCaptions = .empty,
             watchState: String? = nil,
             pendingConsentApp: String? = nil,
@@ -477,6 +496,7 @@
             self.lastJob = lastJob
             self.channelHealth = channelHealth
             self.permissionHealth = permissionHealth
+            self.calendar = calendar
             self.liveCaptions = liveCaptions
             self.watchState = watchState
             self.pendingConsentApp = pendingConsentApp
