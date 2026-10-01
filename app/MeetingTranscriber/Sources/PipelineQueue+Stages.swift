@@ -933,6 +933,14 @@ extension PipelineQueue {
         let basename = job?.namingSlug
             ?? Self.namingSlug(title: title, jobID: jobID, startTime: Date())
         let meetingStartTime = job?.meetingStartTime
+        // Only a job the calendar matched tells the model its title and
+        // participants are authoritative; for every other job the preamble is
+        // what it was before the calendar existed.
+        let scheduled: ProtocolGenerator.ScheduledMeetingContext? = job.flatMap { job in
+            job.calendarEventID == nil
+                ? nil
+                : ProtocolGenerator.ScheduledMeetingContext(title: job.meetingTitle, participants: job.participants)
+        }
         do {
             updateJobState(id: jobID, to: .generatingProtocol)
             startElapsedTimer()
@@ -944,6 +952,7 @@ extension PipelineQueue {
                 title: title,
                 diarized: diarized,
                 meetingStartTime: meetingStartTime,
+                scheduled: scheduled,
             )
             let markdown = transcriptOutputOptions(forJobID: jobID).includeFullTranscriptInProtocol
                 ? protocolMD + "\n\n---\n\n## Full Transcript\n\n" + transcript

@@ -5,7 +5,13 @@ private let logger = Logger(subsystem: AppPaths.logSubsystem, category: "Protoco
 
 /// Abstraction for protocol generation, enabling mock injection in tests.
 protocol ProtocolGenerating {
-    func generate(transcript: String, title: String, diarized: Bool, meetingStartTime: Date?) async throws -> String
+    func generate(
+        transcript: String,
+        title: String,
+        diarized: Bool,
+        meetingStartTime: Date?,
+        scheduled: ProtocolGenerator.ScheduledMeetingContext?,
+    ) async throws -> String
 }
 
 /// Shared protocol utilities: prompts, file operations, and error types.
@@ -13,6 +19,18 @@ enum ProtocolGenerator {
     struct MeetingPromptMetadata: Equatable {
         let date: String
         let time: String
+    }
+
+    /// What the calendar said about the meeting, for the prompt preamble.
+    /// Present only when the recording was matched to a calendar event, so
+    /// the model is told the title and the invitees are authoritative rather
+    /// than guessed from the transcript. Absent for imports, manual recordings
+    /// and any meeting the calendar had nothing for, where the prompt is
+    /// byte-identical to what it was before this existed.
+    struct ScheduledMeetingContext: Equatable, Sendable {
+        let title: String
+        /// Invited attendees merged with the meeting app's roster, if read.
+        let participants: [String]
     }
 
     static let unknownMeetingMetadata = "Unknown"
@@ -122,11 +140,12 @@ enum ProtocolGenerator {
         diarized: Bool,
         language: String,
         meetingStartTime: Date?,
+        scheduled: ScheduledMeetingContext? = nil,
         promptURL: URL = AppPaths.customPromptFile,
         timeZone: TimeZone = .autoupdatingCurrent,
     ) -> String {
         let metadata = meetingStartTime.map { meetingMetadata(for: $0, timeZone: timeZone) }
-        var prompt = meetingTimeContext(metadata: metadata) + applyVariables(
+        var prompt = meetingContext(metadata: metadata, scheduled: scheduled) + applyVariables(
             loadPrompt(from: promptURL),
             language: language,
             metadata: metadata,
@@ -149,16 +168,34 @@ enum ProtocolGenerator {
         )
     }
 
-    private static func meetingTimeContext(metadata: MeetingPromptMetadata?) -> String {
-        guard let metadata else { return "" }
-        return [
-            "Meeting metadata:",
-            "Date: \(metadata.date)",
-            "Time: \(metadata.time)",
-            "The date and time above are authoritative. Interpret relative time expressions",
-            "in the transcript relative to this meeting date. Do not rely on the model's",
-            "assumed current date.",
-        ].joined(separator: "\n") + "\n\n"
+    /// The authoritative preamble: the captured start time, and the calendar
+    /// event when one matched. Empty when neither is known, so a prompt for an
+    /// import or a recovery job carries no claim about when or what it was.
+    private static func meetingContext(
+        metadata: MeetingPromptMetadata?,
+        scheduled: ScheduledMeetingContext?,
+    ) -> String {
+        var lines: [String] = []
+        if let metadata {
+            lines += [
+                "Meeting metadata:",
+                "Date: \(metadata.date)",
+                "Time: \(metadata.time)",
+                "The date and time above are authoritative. Interpret relative time expressions",
+                "in the transcript relative to this meeting date. Do not rely on the model's",
+                "assumed current date.",
+            ]
+        }
+        if let scheduled {
+            if lines.isEmpty { lines.append("Meeting metadata:") }
+            lines.append("Scheduled meeting: \(scheduled.title)")
+            if !scheduled.participants.isEmpty {
+                lines.append("Invited participants: \(scheduled.participants.joined(separator: ", "))")
+            }
+            lines.append("Use the scheduled title as the meeting title and prefer the invited names when identifying speakers.")
+        }
+        guard !lines.isEmpty else { return "" }
+        return lines.joined(separator: "\n") + "\n\n"
     }
 
     // MARK: - File Operations

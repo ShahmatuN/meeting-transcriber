@@ -41,8 +41,11 @@
             title _: String,
             diarized: Bool,
             meetingStartTime: Date?,
+            scheduled: ProtocolGenerator.ScheduledMeetingContext?,
         ) async throws -> String {
-            let prompt = ProtocolGenerator.buildSystemPrompt(diarized: diarized, language: language, meetingStartTime: meetingStartTime) + transcript
+            let prompt = ProtocolGenerator.buildSystemPrompt(
+                diarized: diarized, language: language, meetingStartTime: meetingStartTime, scheduled: scheduled,
+            ) + transcript
 
             let process = Process()
             let resolvedBin = Self.resolveClaudePath(claudeBin)
