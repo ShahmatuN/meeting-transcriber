@@ -20,6 +20,11 @@ class WatchLoop {
     private(set) var currentMeeting: DetectedMeeting?
     private(set) var lastError: String?
     private(set) var detail: String = ""
+    /// When the loop entered `.recording` (set in `apply`, so every start
+    /// path gets it), and the title the recording will be enqueued under.
+    /// Both nil outside `.recording`; read by the Meetings window.
+    private(set) var recordingStartedAt: Date?
+    private(set) var recordingTitle: String?
 
     // Manual recording
     private(set) var manualRecordingInfo: ManualRecordingInfo?
@@ -269,6 +274,7 @@ class WatchLoop {
 
         let pid = source.appPID
         activeRecorder = recorder
+        recordingTitle = title
         update { next in
             next.phase = .recording
             next.manualRecordingInfo = ManualRecordingInfo(pid: pid, appName: appName, title: title)
@@ -391,6 +397,7 @@ class WatchLoop {
         let title = scheduled?.title ?? Self.cleanTitle(meeting.windowTitle)
 
         // --- Recording ---
+        recordingTitle = title
         update { next in
             next.phase = .recording
             next.currentMeeting = meeting
@@ -559,6 +566,12 @@ class WatchLoop {
             manualRecordingInfo = next.manualRecordingInfo
         }
         if oldPhase != next.phase {
+            if next.phase == .recording {
+                recordingStartedAt = nowProvider()
+            } else {
+                recordingStartedAt = nil
+                recordingTitle = nil
+            }
             onStateChange?(oldPhase, next.phase)
         }
     }
