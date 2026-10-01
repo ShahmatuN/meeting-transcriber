@@ -15,6 +15,7 @@ private enum PrivacyPane: String {
     case audioCapture = "Privacy_AudioCapture"
     case microphone = "Privacy_Microphone"
     case accessibility = "Privacy_Accessibility"
+    case calendars = "Privacy_Calendars"
 
     var url: String {
         "x-apple.systempreferences:com.apple.preference.security?\(rawValue)"
@@ -29,6 +30,10 @@ struct AdvancedSettingsView: View {
     /// Production defaults are the real calls.
     var checkScreenRecording: () -> Bool = { Permissions.checkScreenRecording() }
     var requestScreenRecording: () -> Void = { Permissions.ensureScreenRecordingAccess() }
+    /// Calendar access as `CalendarController` last read it; nil hides the row
+    /// (a view rendered without an `AppState`). The grant is requested from
+    /// Settings → General, where the feature it serves is switched on.
+    var calendarAuthorization: CalendarAuthorization?
 
     @State private var micPermission: AVAuthorizationStatus = .notDetermined
     @State private var screenRecordingOK = false
@@ -166,6 +171,16 @@ struct AdvancedSettingsView: View {
                 help: "System Settings → Privacy & Security → Accessibility → enable Meeting Transcriber",
                 settingsURL: PrivacyPane.accessibility.url,
             )
+            if let calendarAuthorization {
+                PermissionRow(
+                    label: "Calendars",
+                    detail: "Optional — names recordings after the running calendar event (Settings → General)",
+                    granted: calendarAuthorization == .fullAccess,
+                    optional: true,
+                    help: "System Settings → Privacy & Security → Calendars → Meeting Transcriber → Full Access",
+                    settingsURL: PrivacyPane.calendars.url,
+                )
+            }
 
             Button("Refresh") {
                 refreshPermissions()

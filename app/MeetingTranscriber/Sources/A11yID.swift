@@ -40,6 +40,14 @@ enum A11yID {
     }
 
     static let recordOnlyBanner = "recordOnlyBanner"
+    static let calendarSection = "calendarSection"
+    static let calendarIntegrationToggle = "calendarIntegrationToggle"
+    /// Per-calendar checkbox, addressed by ROW INDEX for the same reason as
+    /// `consentDeniedAppRemove`: a calendar title can name an employer.
+    static func calendarToggle(_ index: Int) -> String {
+        "calendarToggle.\(index)"
+    }
+
     /// Settings → Advanced, the one place the app asks for Screen Recording.
     static let screenRecordingRequestButton = "screenRecordingRequestButton"
     static let transcriptionSection = "transcriptionSection"

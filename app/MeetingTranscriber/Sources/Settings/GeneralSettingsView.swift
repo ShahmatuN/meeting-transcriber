@@ -11,6 +11,10 @@ struct GeneralSettingsView: View {
     /// without using the channel that is broken.
     var notificationVisibility: NotificationVisibility?
 
+    /// Calendar concern behind the Calendar section. Nil hides the section,
+    /// which is the state of a view rendered without an `AppState` (tests).
+    var calendar: CalendarController?
+
     /// Nil until the first permission check. The case, not just the message:
     /// how total the failure is decides the headline.
     private var browserConsentReadiness: BrowserConsentReadiness? {
@@ -53,6 +57,10 @@ struct GeneralSettingsView: View {
                 .foregroundStyle(.secondary)
                 browserConsentWarning
                 consentDenyList
+            }
+
+            if let calendar {
+                CalendarSettingsSection(settings: settings, calendar: calendar)
             }
 
             Section("Detection") {

@@ -11,6 +11,10 @@ struct SettingsView: View {
     /// General tab so it can warn when browser-meeting consent cannot reach the
     /// user. Nil until the first permission check completes.
     var notificationVisibility: NotificationVisibility?
+    /// Calendar concern for the General tab's Calendar section and the
+    /// Advanced tab's permission row. Nil only in tests that render the
+    /// settings without an `AppState`.
+    var calendar: CalendarController?
     /// Required: the same actor instance the pipeline writes to, so the Stats
     /// tab and the pipeline don't race two writers on `recognition_log.jsonl`.
     var recognitionStatsLog: RecognitionStatsLog
@@ -61,6 +65,7 @@ struct SettingsView: View {
             GeneralSettingsView(
                 settings: settings,
                 notificationVisibility: notificationVisibility,
+                calendar: calendar,
             )
 
         case .audio:
@@ -88,7 +93,7 @@ struct SettingsView: View {
             OutputSettingsView(settings: settings)
 
         case .advanced:
-            AdvancedSettingsView(settings: settings)
+            AdvancedSettingsView(settings: settings, calendarAuthorization: calendar?.authorization)
 
         case .about:
             AboutSettingsView(settings: settings, updateChecker: updateChecker)
