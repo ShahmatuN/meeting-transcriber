@@ -50,11 +50,13 @@ struct GeneralSettingsView: View {
                     """
                     Detects web meetings (Google Meet, Whereby, web Zoom/Teams) by the WebRTC \
                     signal, so any browser works. Other apps that place calls can trigger it too; \
-                    it always asks before recording, and "Never for this app" stops one for good.
+                    it asks before recording (unless auto-record below applies), and \
+                    "Never for this app" stops one for good.
                     """,
                 )
                 .font(.caption)
                 .foregroundStyle(.secondary)
+                autoRecordGoogleMeet
                 browserConsentWarning
                 consentDenyList
             }
@@ -89,6 +91,47 @@ struct GeneralSettingsView: View {
         }
         .formStyle(.grouped)
     }
+
+    /// The one browser meeting that may skip the prompt. Nested under the
+    /// browser toggle and disabled without it, because it is a refinement of
+    /// that detection, not a detector of its own.
+    private var autoRecordGoogleMeet: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Toggle("Auto-record Google Meet in Chrome", isOn: $settings.autoRecordGoogleMeet)
+                .accessibilityIdentifier(A11yID.autoRecordGoogleMeetToggle)
+                .disabled(!settings.watchBrowserMeetings)
+                .onChange(of: settings.autoRecordGoogleMeet) { _, enabled in
+                    if enabled { Self.probeChromeTabs() }
+                }
+            Text(Self.autoRecordCaption)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    #if APPSTORE
+        private static let autoRecordCaption = """
+        Starts recording without asking when a calendar event with a Google Meet link is running \
+        while Chrome holds a call (Settings → General → Calendar). Recording may begin on the Meet \
+        lobby page and stops when you leave.
+        """
+
+        private static func probeChromeTabs() {}
+    #else
+        private static let autoRecordCaption = """
+        Starts recording without asking when Chrome has a meet.google.com call open, or a calendar \
+        event with a Google Meet link is running (Settings → General → Calendar). The first time, \
+        macOS asks to let Meeting Transcriber control Google Chrome, which is how the tab addresses \
+        are read. Recording may begin on the Meet lobby page and stops when you leave.
+        """
+
+        /// Ask Chrome once, right now, so the Automation prompt appears while the
+        /// user is looking at the switch that needs it, not mid-meeting. The
+        /// result is discarded; the prompt is the point.
+        private static func probeChromeTabs() {
+            Task { _ = await ChromeTabURLReader.tabURLs() }
+        }
+    #endif
 
     /// Apps the user answered "Never for this app" about.
     ///
