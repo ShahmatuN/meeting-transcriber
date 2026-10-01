@@ -20,6 +20,7 @@ final class FakeCalendarSource: CalendarEventSource {
         self.authorization = authorization
     }
 
+    // swiftlint:disable:next async_without_await
     func requestAccess() async -> Bool {
         requestCount += 1
         authorization = grantOnRequest
