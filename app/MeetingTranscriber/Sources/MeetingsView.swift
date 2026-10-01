@@ -299,7 +299,7 @@ private struct UpcomingEventRow: View {
 
 // MARK: - Recording now
 
-private struct LiveRecordingCard: View {
+struct LiveRecordingCard: View {
     let recording: LiveRecordingSummary
     let onOpen: () -> Void
     let onStop: () -> Void
