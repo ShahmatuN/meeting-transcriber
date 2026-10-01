@@ -52,6 +52,7 @@ final class NullCalendarSource: CalendarEventSource {
     var authorization: CalendarAuthorization = .notDetermined
     var onChange: (() -> Void)?
 
+    // swiftlint:disable:next async_without_await
     func requestAccess() async -> Bool {
         false
     }

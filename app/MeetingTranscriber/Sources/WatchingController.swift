@@ -218,10 +218,8 @@ final class WatchingController {
                 syncEngines?()
                 pipeline.rebuild()
 
-                let detector = makeDetector()
-
                 let loop = WatchLoop(
-                    detector: detector,
+                    detector: makeDetector(),
                     recorderFactory: makeRecorderFactory(),
                     pipelineQueue: pipeline.queue,
                     pollInterval: settings.pollInterval,

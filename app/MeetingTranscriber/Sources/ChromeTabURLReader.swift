@@ -75,7 +75,9 @@
                     try? await Task.sleep(for: timeout)
                     return nil
                 }
-                let first = await group.next() ?? nil
+                // `next()` yields the child's `String?` wrapped once more;
+                // flatten rather than `?? nil`, which the linter rejects.
+                let first = await group.next().flatMap { $0 }
                 group.cancelAll()
                 return first
             }

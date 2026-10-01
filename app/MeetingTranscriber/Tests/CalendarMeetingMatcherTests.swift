@@ -11,7 +11,7 @@ final class CalendarMeetingMatcherTests: XCTestCase {
         id: String = "e1",
         calendar: String = "work",
         title: String = "Weekly Sync",
-        startOffset: TimeInterval,
+        startOffset: TimeInterval = -60,
         duration: TimeInterval = 1800,
         isAllDay: Bool = false,
         attendees: [CalendarEventSummary.Participant] = [],

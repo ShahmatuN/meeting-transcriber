@@ -61,8 +61,10 @@ enum BrowserAutoRecordPolicy {
         switch parts.count {
         case 1 where isMeetCode(parts[0]):
             return parts[0]
+
         case 2 where parts[0] == "lookup" && !parts[1].isEmpty:
             return parts[1]
+
         default:
             return nil
         }

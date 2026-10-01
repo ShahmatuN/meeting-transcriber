@@ -26,8 +26,8 @@ struct DetectedMeeting: Equatable {
     /// The same meeting under another title. Used when a signal outside the
     /// detector (a calendar event, a Meet code) names the call better than
     /// the window did; everything that identifies the meeting is kept.
-    func retitled(_ title: String) -> DetectedMeeting {
-        DetectedMeeting(
+    func retitled(_ title: String) -> Self {
+        Self(
             pattern: pattern, windowTitle: title, ownerName: ownerName,
             windowPID: windowPID, detectedAt: detectedAt,
         )

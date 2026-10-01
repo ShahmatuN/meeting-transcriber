@@ -35,6 +35,6 @@ final class GeneralSettingsAutoRecordTests: XCTestCase {
         let toggle = try view.inspect()
             .find(viewWithAccessibilityIdentifier: A11yID.autoRecordGoogleMeetToggle)
             .find(ViewType.Toggle.self)
-        XCTAssertTrue(try toggle.isDisabled())
+        XCTAssertTrue(toggle.isDisabled())
     }
 }

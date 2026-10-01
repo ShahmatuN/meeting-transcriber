@@ -247,10 +247,7 @@ final class AppState {
         let warmupQueue = ModelWarmupQueue()
         self.engines = EngineController(settings: settings, warmupQueue: warmupQueue)
         self.permissions = PermissionsController(notifier: notifier)
-        self.calendar = CalendarController(
-            settings: settings,
-            source: calendarSource ?? Self.makeNullCalendarSource(),
-        )
+        self.calendar = CalendarController(settings: settings, source: calendarSource ?? Self.makeNullCalendarSource())
         self.updateChecker = updateChecker ?? Self.makeUpdateChecker()
         self.pipeline = PipelineController(settings: settings, notifier: notifier)
         self.channelHealth = ChannelHealthController(

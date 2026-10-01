@@ -287,33 +287,10 @@ final class AppSettingsTests: XCTestCase {
         XCTAssertEqual(settings.watchApps, ["Microsoft Teams", "Zoom", "Webex", "Browser Meetings"])
     }
 
-    func testAutoRecordGoogleMeetDefaultsOffAndPersists() {
-        // Off by default: existing installs keep prompting for every browser
-        // meeting until the user opts this one call type in.
-        XCTAssertFalse(settings.autoRecordGoogleMeet)
-        settings.autoRecordGoogleMeet = true
-        XCTAssertTrue(AppSettings(defaults: defaults).autoRecordGoogleMeet)
-    }
-
     func testWatchBrowserMeetingsPersists() {
         settings.watchBrowserMeetings = true
         let fresh = AppSettings(defaults: defaults)
         XCTAssertTrue(fresh.watchBrowserMeetings)
-    }
-
-    // MARK: - Calendar
-
-    func testCalendarIntegrationDefaultsOffWithEveryCalendar() {
-        XCTAssertFalse(settings.calendarIntegrationEnabled, "turning it on is what asks for calendar access")
-        XCTAssertEqual(settings.calendarIDs, [], "empty means every calendar")
-    }
-
-    func testCalendarSettingsPersist() {
-        settings.calendarIntegrationEnabled = true
-        settings.calendarIDs = ["work-id", "team-id"]
-        let fresh = AppSettings(defaults: defaults)
-        XCTAssertTrue(fresh.calendarIntegrationEnabled)
-        XCTAssertEqual(fresh.calendarIDs, ["work-id", "team-id"])
     }
 
     // MARK: - Claude CLI

@@ -304,7 +304,7 @@ final class OpenAIProtocolGeneratorTests: XCTestCase { // swiftlint:disable:this
 
         let gen = makeGenerator(session: makeMockSession())
         _ = try await gen.generate(
-            transcript: "x", title: "t", diarized: false, meetingStartTime: startTime,
+            transcript: "x", title: "t", diarized: false, meetingStartTime: startTime, scheduled: nil,
         )
     }
 
