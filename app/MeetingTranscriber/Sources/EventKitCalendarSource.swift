@@ -15,7 +15,7 @@ private let logger = Logger(subsystem: AppPaths.logSubsystem, category: "EventKi
 @MainActor
 final class EventKitCalendarSource: CalendarEventSource {
     private let store = EKEventStore()
-    private var observer: (any NSObjectProtocol)?
+    nonisolated(unsafe) private var observer: (any NSObjectProtocol)?
     var onChange: (() -> Void)?
 
     init() {
