@@ -341,11 +341,17 @@
                 let watchTeams: Bool
                 let watchZoom: Bool
                 let watchWebex: Bool
+                let watchBrowserMeetings: Bool
+                /// Whether a Google Meet call in Chrome records without the
+                /// consent prompt. The browser e2e lane's `--auto-record` mode
+                /// reads it back to prove the preference reached the app.
+                let autoRecordGoogleMeet: Bool
                 let autoWatch: Bool
                 let pollIntervalSeconds: Double
 
                 static let empty = Self(
                     watchTeams: false, watchZoom: false, watchWebex: false,
+                    watchBrowserMeetings: false, autoRecordGoogleMeet: false,
                     autoWatch: false, pollIntervalSeconds: 0,
                 )
             }

@@ -34,6 +34,8 @@
                 watchTeams: watchTeams,
                 watchZoom: watchZoom,
                 watchWebex: watchWebex,
+                watchBrowserMeetings: watchBrowserMeetings,
+                autoRecordGoogleMeet: autoRecordGoogleMeet,
                 autoWatch: autoWatch,
                 pollIntervalSeconds: pollInterval,
             )
