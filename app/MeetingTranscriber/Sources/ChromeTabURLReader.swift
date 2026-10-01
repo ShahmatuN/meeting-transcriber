@@ -46,7 +46,7 @@
             guard !NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier).isEmpty else {
                 return []
             }
-            nonisolated(unsafe) let process = Process()
+            let process = Process()
             process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
             process.arguments = ["-e", script]
             let stdout = Pipe()
@@ -58,7 +58,7 @@
                 logger.error("osascript failed to launch: \(error.localizedDescription, privacy: .public)")
                 return []
             }
-            nonisolated(unsafe) let handle = stdout.fileHandleForReading
+            let handle = stdout.fileHandleForReading
             let output: String? = await withTaskGroup(of: String?.self) { group in
                 group.addTask {
                     var text = ""
