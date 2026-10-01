@@ -252,7 +252,9 @@ final class PermissionHealthCheckTests: XCTestCase {
             microphone: .broken,
             accessibility: .broken,
         )
-        XCTAssertEqual(result.logSummary, "screen-recording=denied,microphone=broken,accessibility=broken")
+        // Screen Recording is optional and produces no problem, so a denied
+        // one leaves no token: the summary names only what the badge reports.
+        XCTAssertEqual(result.logSummary, "microphone=broken,accessibility=broken")
     }
 
     func testLogSummaryEmptyWhenHealthy() {
