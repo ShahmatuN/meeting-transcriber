@@ -38,7 +38,10 @@ final class WatchLoopRecordingSessionTests: XCTestCase {
     func testAutoDetectedMeetingIsTitledAfterTheCalendarEventWhileRecording() async throws {
         let recorder = MockRecorder()
         recorder.mixPath = URL(fileURLWithPath: "/tmp/watchloop_session_\(UUID().uuidString)_mix.wav")
-        let start = Date(timeIntervalSince1970: 1_780_000_000)
+        // A clock that moves on every sleep: the end-of-meeting wait measures
+        // its grace period on it, so a frozen one would never let it end.
+        let clock = TestClock(start: Date(timeIntervalSince1970: 1_780_000_000))
+        let start = clock.now
         let scheduled = ScheduledMeeting(
             eventID: "evt-1", title: "Grooming+Daily", attendees: [], meetingURL: nil,
             start: start, end: start.addingTimeInterval(2700),
@@ -51,7 +54,8 @@ final class WatchLoopRecordingSessionTests: XCTestCase {
             endGracePeriod: 0.01,
             maxDuration: 10,
             noMic: true,
-            nowProvider: { start },
+            nowProvider: { clock.now },
+            sleepProvider: { await clock.sleep(for: $0) },
             scheduledMeeting: { _ in scheduled },
         )
         loop.permissionChecker = { .allHealthy }
