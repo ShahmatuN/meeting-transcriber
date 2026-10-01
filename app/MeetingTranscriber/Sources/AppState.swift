@@ -167,6 +167,7 @@ final class AppState {
     /// when live transcription is on AND a recording is active. Owned here (read
     /// by the overlay window + RPC snapshot) and injected into `liveTranscription`.
     let liveCaptions: LiveCaptionsState = .init()
+    let meetingLibrary = MeetingLibraryStore()
 
     /// Live-transcription controller lifecycle (lazy creation against the active
     /// engine, pre-warm, per-recording sink installation), extracted into its own

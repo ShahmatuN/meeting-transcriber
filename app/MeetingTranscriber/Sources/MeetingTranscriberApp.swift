@@ -9,6 +9,7 @@ extension Notification.Name {
     static let showSpeakerNaming = Notification.Name("showSpeakerNaming")
     static let showSettings = Notification.Name("showSettings")
     static let closeSettings = Notification.Name("closeSettings")
+    static let showMeetings = Notification.Name("showMeetings")
 }
 
 /// Renders the menu-bar icon and ticks the animation frame in its own
@@ -129,6 +130,7 @@ struct MeetingTranscriberApp: App {
         speakerNamingWindow
         settingsWindow
         recordAppWindow
+        meetingsWindow
     }
 
     // MARK: - Menu Bar
@@ -153,6 +155,7 @@ struct MeetingTranscriberApp: App {
             onOpenSettings: {
                 bringWindowToFront(id: "settings")
             },
+            onOpenMeetings: { bringWindowToFront(id: "meetings") },
             onNameSpeakers: appState.hasPendingSpeakerNamingJobs ? {
                 bringWindowToFront(id: "speaker-naming")
             } : nil,
@@ -190,6 +193,9 @@ struct MeetingTranscriberApp: App {
         }
         .onReceive(NotificationCenter.default.publisher(for: .closeSettings)) { _ in
             closeWindow(id: "settings")
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .showMeetings)) { _ in
+            bringWindowToFront(id: "meetings")
         }
         .task {
             await appState.engines.preloadActiveModel()
@@ -298,6 +304,25 @@ struct MeetingTranscriberApp: App {
             )
         }
         .windowResizability(.contentSize)
+    }
+
+    private var meetingsWindow: some Scene {
+        Window("Meetings", id: "meetings") {
+            MeetingsView(
+                store: appState.meetingLibrary,
+                liveRecording: appState.liveRecording,
+                processing: appState.processingMeetings,
+                liveCaptions: appState.liveCaptions,
+                calendarEnabled: appState.calendar.isEnabled,
+                outputDir: appState.settings.effectiveOutputDir,
+                onReload: { appState.reloadMeetingLibrary() },
+                onStopRecording: { appState.watching.stopManualRecording() },
+                onOpenURL: { NSWorkspace.shared.open($0) },
+                onRevealInFinder: { NSWorkspace.shared.activateFileViewerSelecting([$0]) },
+                onOpenSettings: { bringWindowToFront(id: "settings") },
+            )
+        }
+        .defaultSize(width: 780, height: 860)
     }
 
     // MARK: - Speaker Naming Window

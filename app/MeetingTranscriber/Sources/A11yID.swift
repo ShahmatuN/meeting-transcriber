@@ -17,6 +17,12 @@ import Foundation
 /// the pre-existing identifiers); don't "tidy" or otherwise change a value
 /// without updating every site.
 enum A11yID {
+    // Meetings window + the menu item that opens it.
+    static let menuOpenMeetings = "menuOpenMeetings"
+    static let meetingsStopRecording = "meetingsStopRecording"
+    static let meetingsOpenLiveRecording = "meetingsOpenLiveRecording"
+    static let meetingDetailTabPicker = "meetingDetailTabPicker"
+
     // Settings — section anchors + record-only controls.
     static let recordOnlyToggle = "recordOnlyToggle"
     static let watchBrowserToggle = "watchBrowserToggle"

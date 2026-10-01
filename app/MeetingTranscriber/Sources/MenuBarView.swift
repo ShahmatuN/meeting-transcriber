@@ -22,6 +22,9 @@ struct MenuBarView: View {
     let onOpenProtocol: (URL) -> Void
     let onOpenProtocolsFolder: () -> Void
     let onOpenSettings: () -> Void
+    /// Opens the Meetings window. Defaulted so the many test constructions
+    /// that predate the window need not name it.
+    var onOpenMeetings: () -> Void = {}
     let onNameSpeakers: (() -> Void)?
     let onProcessFiles: () -> Void
     let onDismissJob: (UUID) -> Void
@@ -188,6 +191,14 @@ struct MenuBarView: View {
     }
 
     @ViewBuilder private var protocolActions: some View {
+        Button {
+            onOpenMeetings()
+        } label: {
+            Label("Meetings…", systemImage: "list.bullet.rectangle")
+        }
+        .keyboardShortcut("l")
+        .accessibilityIdentifier(A11yID.menuOpenMeetings)
+
         if let protocolPath = status?.protocolPath {
             Button {
                 onOpenLastProtocol()
