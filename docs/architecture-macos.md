@@ -108,6 +108,7 @@ State writes to `AppPaths.dataDir`; IPC + queue snapshots to `ipcDir`.
 | `Settings/HelpBadge.swift` / `Settings/SettingsHelp.swift` | Reusable "?" help-popover badge + its shared copy, used across Settings sections |
 | `Settings/View+RecordOnly.swift` | `recordOnlyDisabled(_:)` view modifier — dims + disables the Transcription/Protocol/VAD/Diarization sections when record-only mode is on |
 | `SpeakerNamingView.swift` | Speaker naming dialog after diarization |
+| `SpeakerNamingRowState.swift` | `@Observable` per-row state for the naming dialog, keyed by speaker label throughout, so a tap or typed edit is assertable against the row it landed on rather than only that the action ran |
 | `NamingGraceKey.swift` | Identity of one keyboard-grace window in the naming dialog — what counts as "a new grace window" (data revision + pending-job count), so the gate re-locks when another job steals focus |
 | `KnownVoicesView.swift` | Manage persisted speaker DB (rename, delete, merge) — embedded in `SpeakersSettingsView` |
 | `RecognitionStatsView.swift` | Recognition stats display — aggregate counts from `recognition_log.jsonl` |
@@ -147,13 +148,19 @@ State writes to `AppPaths.dataDir`; IPC + queue snapshots to `ipcDir`.
 | `ConsentPromptCoordinator.swift` | Coordinates an async yes/no recording-consent prompt: register pending decision by id, resolve once via answer or timeout |
 | `WatchLoop+Consent.swift` | Browser-meeting consent gate, split out of `WatchLoop`; only patterns with `requiresRecordingConsent` reach it |
 | `DualSourceRecorder.swift` | Orchestrates AudioTapLib capture + mic, mixes tracks |
+| `MicDelayNormalisation.swift` | Turns a microphone that started before the app tap (the normal case since issue #693, since `micDelay` is mic-minus-app) back into the alignment convention every downstream consumer expects |
 | `RecordingProvider.swift` | Protocol abstraction over `DualSourceRecorder` for mock injection in `WatchLoop` tests |
 | `WatchLoop+RecordOnly.swift` | Record-only output branch (moves WAVs + writes `RecordingSidecar`), split out of `WatchLoop` |
 | `ProtocolResumePolicy.swift` | Decides what the snapshot restore does with a job interrupted mid-run: resume from the saved transcript, just finish, or run in full. Keys on the interrupted stage, never on "a transcript exists", because stage 1 writes a draft without speaker labels |
 | `AudioPersistencePolicy.swift` | Decides per finished-job source file whether to relocate it into the output folder or leave it in place (staging-dir recording vs. user-picked import) |
 | `TranscribingEngine.swift` | `TranscribingEngine` protocol + `mergeDualSourceSegments` default impl |
+| `TimestampedSegment.swift` | The transcribed-segment value type (start/end/text/speaker) itself — every field `var` so delay shift, VAD remap, and block-merge passes can copy-and-mutate just the fields they touch |
+| `TranscriptNote.swift` | Puts a recording-level annotation at the top of a rendered transcript, called from the one place every transcript render goes through |
+| `DualTrackViability.swift` | Decides which tracks of a dual-source recording carry enough audio to transcribe, so an empty one no longer throws the whole job and discards the other, viable track with it |
 | `WhisperKitEngine.swift` | WhisperKit transcription engine (99+ languages, ~1 GB model) |
 | `WhisperDecodingClient.swift` | Narrow decode boundary used by `WhisperKitEngine` — production forwards to WhisperKit, tests capture the exact options passed |
+| `WhisperKitLocalSnapshot.swift` | Detects an already-fetched WhisperKit model on disk so `loadModel()` can skip the Hub round trip `WhisperKit.download` would otherwise make before checking locally (issue #736) |
+| `WhisperKitModelSource.swift` | The three steps `WhisperKitEngine.loadModel()` takes to reach a usable pipeline, named so a test can observe which one ran |
 | `WhisperVocabularyPrompt.swift` | Converts the shared custom-vocabulary file into a bounded WhisperKit decoder prompt (experimental, off by default) |
 | `ParakeetEngine.swift` | NVIDIA Parakeet TDT v3 via FluidAudio (25 EU languages, ~50 MB, ~10× faster) |
 | `ParakeetTokenGrouping.swift` | Pure token-grouping logic extracted from `ParakeetEngine` (testable) |
@@ -177,7 +184,7 @@ State writes to `AppPaths.dataDir`; IPC + queue snapshots to `ipcDir`.
 | `LocalVQECanceller+File.swift` | File-to-file half of `LocalVQECanceller` — the shape the pipeline calls |
 | `LocalVQEModel.swift` | Resolves the bundled LocalVQE AEC model (`localvqe-*.gguf`) the canceller runs against; refuses to silently fall back when an override path is missing |
 | `LocalVQESelftest.swift` | Hidden `--localvqe-selftest` CLI probe proving the statically linked library resolves its compute backend from inside a signed `.app` bundle (`#if !APPSTORE`) |
-| `PipelineJob.swift` | Pipeline job model (waiting → transcribing → diarizing → generatingProtocol → done) |
+| `PipelineJob.swift` | Pipeline job model (waiting → transcribing → diarizing → speakerNamingPending → generatingProtocol → done) |
 | `PipelineSnapshot.swift` | Pure I/O helpers for persisting `PipelineQueue` jobs to disk (atomic rename) |
 | `PipelineEventLog.swift` | Append-only JSONL log of `PipelineQueue` job state transitions |
 | `StageTimingStats.swift` | Per-stage wall-clock duration tracking, backs `ProcessingStatsView` |
@@ -226,6 +233,8 @@ State writes to `AppPaths.dataDir`; IPC + queue snapshots to `ipcDir`.
 | `SilentRecordingMonitor.swift` | Pure state machine detecting fully-silent recordings (both channels below threshold) |
 | `ChannelHealthMonitor.swift` | Pure state machine for per-channel asymmetric silence detection (one channel live, other dead) — levels + hysteresis, drives the menu-bar tint |
 | `ChannelHealthController.swift` | `@Observable` controller polling channel dBFS levels and driving `ChannelHealthMonitor` |
+| `ChannelHealthController+Alerts.swift` | Notification copy (title/body/Focus behavior) for each channel fault, split out of `ChannelHealthController` for size |
+| `ChannelHealthController+LogLines.swift` | Diagnostics log-line strings for channel-health verdicts, built as pure strings so content is testable |
 | `ChannelFaultMonitor.swift` | Pure state machine deciding whether a channel has stopped delivering, from per-buffer ages rather than levels (issue #614) — drives the "Capture Channel Silent" notification, deliberately separate from the level-based tint |
 | `PairedImportPanelDelegate.swift` | `NSOpenPanel` delegate + accessory view for paired dual-source file import |
 | `PairedRecordingResolver.swift` | Groups recording URLs into dual-source groups (app + mic pairs, singletons) for reimport |
@@ -243,6 +252,8 @@ State writes to `AppPaths.dataDir`; IPC + queue snapshots to `ipcDir`.
 | File | Role |
 |------|------|
 | `AudioMixer.swift` | Resampling, mixing, echo suppression, mute masking, WAV I/O |
+| `AudioMixer+AssetFallback.swift` | AVAsset tolerant-decode fallback, split out of `AudioMixer.swift` for size |
+| `AudioMixer+Streaming.swift` | Streams long audio imports during resampling instead of loading the whole file, split out of `AudioMixer.swift` for size |
 | `AudioConstants.swift` | Shared audio pipeline constants (target sample rate) |
 | `FFmpegHelper.swift` | ffmpeg CLI detection + 16 kHz mono WAV conversion fallback for file-import formats AVAsset can't decode |
 | `FluidVAD.swift` | VAD preprocessing via FluidAudio Silero v6 — silence trimming + `VadSegmentMap` timeline remapping |
@@ -286,6 +297,17 @@ State writes to `AppPaths.dataDir`; IPC + queue snapshots to `ipcDir`.
 | `tools/audiotap/Sources/StreamingMonoResampler.swift` | Streaming mono resampler for the live 16 kHz audio path |
 | `tools/audiotap/Sources/TapFormatResolver.swift` | Derives mic tap format from hardware format (prevents installTap channel-count mismatch) |
 | `tools/audiotap/Sources/TimelineAnchor.swift` | Wall-clock timeline anchor across device-change restarts (keeps track aligned to real time) |
+| `tools/audiotap/Sources/SilentTrackObserver.swift` | Notices when the app track enters/leaves a run of exact zeros while buffers keep arriving, so the transition lands in the diagnostics log, not only the end state (issue #672) |
+| `tools/audiotap/Sources/SilentTrackDiagnostics.swift` | Owns the queue, in-flight guard, and observer state the silent-track instrumentation needs, so a wedged HAL read costs one parked thread rather than a pile |
+| `tools/audiotap/Sources/AppAudioCapture+SilentTrackDiagnostics.swift` | Log call sites for the silent-track instrumentation, split out of `AppAudioCapture.swift` for size |
+| `tools/audiotap/Sources/ProcessOutputState.swift` | What a tapped process's CoreAudio object reports about its own output (issue #672) |
+| `tools/audiotap/Sources/TappedProcess.swift` | One process the tap was built from, with the CoreAudio process-object ids kept rather than re-translated, so a later diagnostic read is about the objects actually tapped |
+| `tools/audiotap/Sources/AggregateRunState.swift` | What the private aggregate device reports about itself and which output device it is bound to (issue #693) |
+| `tools/audiotap/Sources/AppAudioCapture+RateQueries.swift` | Sample-rate property queries and the priority ladder between them, split out of `AppAudioCapture.swift` for size |
+| `tools/audiotap/Sources/DeliveredRateTracker.swift` | Measures the rate the tap is actually delivering in place, so a device that renegotiates mid-capture without a default-device change is still caught (issue #673) |
+| `tools/audiotap/Sources/NoFirstBufferProbeSchedule.swift` | When an app-audio capture that has delivered nothing is probed, and what the resulting diagnostic line says |
+| `tools/audiotap/Sources/MicInputDevice.swift` | The input device the microphone diagnostics name — distinct from the system default the engine's input unit may silently be bound to instead |
+| `tools/audiotap/Sources/MicDevicePinOutcome.swift` | What came of pointing a mic engine's input unit at the configured device (accepted, refused, or accepted-but-not-adopted), read back rather than assumed from the `OSStatus` alone (issue #724) |
 
 ### Support
 
@@ -329,6 +351,7 @@ State writes to `AppPaths.dataDir`; IPC + queue snapshots to `ipcDir`.
 | `Bundle+AppVersion.swift` | Bundle extension: `appVersion` + `gitCommitHash` from `Info.plist` |
 | `DiagnosticExporter.swift` | Reads log entries and writes shareable `.log` file (Settings → Advanced → Export Diagnostics) |
 | `PersistentDiagnosticLog.swift` | Persistent `log stream` subprocess with sliding-window restart policy for long-term log retention |
+| `DiagnosticsLogging.swift` | Seam for where a component writes its diagnostics lines (rather than a bare `Logger` call), so a test can assert a line was written at the point it claims to be |
 | `String+LogRedaction.swift` | String extensions: `.pseudonymized` (SHA-256 4-hex prefix) and `.redactedName` for log privacy |
 | `FileManager+OwnerOnly.swift` | `FileManager` extension: owner-only file permission constant (`rw-------`) as single source of truth |
 | `SingleFlight.swift` | Single-flight async deduplication coordinator (concurrent callers await one shared run and receive its outcome) |
@@ -339,7 +362,7 @@ State writes to `AppPaths.dataDir`; IPC + queue snapshots to `ipcDir`.
 
 | Path | Role |
 |------|------|
-| `tools/mt-cli/` | Thin Swift client for `DebugRPCServer`. Subcommands: `state`, `healthz`, `screenshot`, `open-settings`, `close-settings`, `confirm-browser-consent`, `wav-verdict`, `seed-speaker`, `rename-speaker`, `delete-speaker`, `merge-speakers`, `ui-tree`, `ui-press`. Reads token from `~/Library/Application Support/MeetingTranscriber/.rpc-token`. Skill doc at `tools/mt-cli/skill.md`. |
+| `tools/mt-cli/` | Thin Swift client for `DebugRPCServer`. Subcommands: `watch`, `record`, `state`, `healthz`, `screenshot`, `open-settings`, `close-settings`, `confirm-browser-consent`, `wav-verdict`, `seed-speaker`, `rename-speaker`, `delete-speaker`, `merge-speakers`, `ui-tree`, `ui-press`. Reads token from `~/Library/Application Support/MeetingTranscriber/.rpc-token`. Skill doc at `tools/mt-cli/skill.md`. |
 | `tools/meeting-simulator/` | Test fixture: spawns a fake meeting window for E2E detection tests |
 
 ---
@@ -348,9 +371,11 @@ State writes to `AppPaths.dataDir`; IPC + queue snapshots to `ipcDir`.
 
 ```
 WatchLoop:     idle → watching → recording → watching (enqueues PipelineJob)
-PipelineQueue: waiting → transcribing → [diarizing] → generatingProtocol → done (60s auto-remove)
-                                                                            ↳ error
+PipelineQueue: waiting → transcribing → [diarizing] → [speakerNamingPending] → generatingProtocol → done (60s auto-remove)
+                                                                                                     ↳ error ⟲ retry → waiting
 ```
+
+A job that ends in `error` can be retried from the menu bar (`PipelineQueue.canRetryJob`/`retryJob`), which re-enqueues it from `waiting` rather than discarding it.
 
 **Transitions** are observable via `WatchLoop.state` and `PipelineQueue.jobs`, triggering:
 - Menu bar icon/label updates

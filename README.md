@@ -98,6 +98,7 @@ flowchart TD
 - **Multi-format input** — Supports WAV, MP3, M4A, MP4, FLAC, plus the phone and messenger voice formats AMR, 3GP/3G2 and OPUS/OGG; MKV and WebM additionally need ffmpeg
 - **Update checker** — Notifies when a new version is available
 - **Background processing** — PipelineQueue runs transcription and protocol generation independently from recording
+- **Retry on failure** — a job that ended in an error can be retried from the menu bar without re-recording
 - **Record-only mode** — Skip the entire post-recording pipeline and drop dual-source recordings + a metadata sidecar into the output folder, for external/fleet processing (e.g. a separate GPU host)
 - **Local automation API** (Homebrew build): drive the pipeline headlessly over localhost HTTP. POST an audio file, get a diarized transcript back. See [`docs/automation-api.md`](docs/automation-api.md)
 - **Stream Deck and hotkey control** (Homebrew build): start/stop watching from a Stream Deck key, Shortcut, Raycast or any launcher. See [`docs/stream-deck.md`](docs/stream-deck.md)
