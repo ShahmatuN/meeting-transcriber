@@ -40,6 +40,8 @@ enum A11yID {
     }
 
     static let recordOnlyBanner = "recordOnlyBanner"
+    /// Settings → Advanced, the one place the app asks for Screen Recording.
+    static let screenRecordingRequestButton = "screenRecordingRequestButton"
     static let transcriptionSection = "transcriptionSection"
     static let protocolSection = "protocolSection"
     static let includeFullTranscriptToggle = "includeFullTranscriptToggle"

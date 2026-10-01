@@ -7,18 +7,27 @@ struct PermissionRow: View {
     var granted: Bool
     var warning: Bool = false
     var optional: Bool = false
+    /// The grant cannot be read back at all, so the row states neither yes nor
+    /// no. Exists for the Audio Recording grant the process tap runs on, which
+    /// has no preflight API (issue #524): rendering it as denied would send
+    /// every user to System Settings, rendering it as granted would be a claim
+    /// nothing supports. Below `granted` in precedence so a caller that does
+    /// learn the answer later can simply pass it.
+    var unknown: Bool = false
     var help: String = ""
     var settingsURL: String = ""
     @State private var showingHelp = false
 
     private var icon: String {
         if granted { return "checkmark.circle.fill" }
+        if unknown { return "questionmark.circle.fill" }
         if warning || optional { return "exclamationmark.triangle.fill" }
         return "xmark.circle.fill"
     }
 
     private var iconColor: Color {
         if granted { return .green }
+        if unknown { return .secondary }
         if warning || optional { return .orange }
         return .red
     }

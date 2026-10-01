@@ -9,6 +9,10 @@ private let logger = Logger(subsystem: AppPaths.logSubsystem, category: "Advance
 
 private enum PrivacyPane: String {
     case screenCapture = "Privacy_ScreenCapture"
+    /// The "System Audio Recording Only" section of the combined pane on
+    /// macOS 15+. Unverified that System Settings scrolls to the section
+    /// rather than opening the pane; the pane is the right one either way.
+    case audioCapture = "Privacy_AudioCapture"
     case microphone = "Privacy_Microphone"
     case accessibility = "Privacy_Accessibility"
 
@@ -19,6 +23,12 @@ private enum PrivacyPane: String {
 
 struct AdvancedSettingsView: View {
     @Bindable var settings: AppSettings
+
+    /// Seams for the two Screen Recording calls, so a test can render the row
+    /// without a TCC probe and assert that the button is wired to the request.
+    /// Production defaults are the real calls.
+    var checkScreenRecording: () -> Bool = { Permissions.checkScreenRecording() }
+    var requestScreenRecording: () -> Void = { Permissions.ensureScreenRecordingAccess() }
 
     @State private var micPermission: AVAuthorizationStatus = .notDetermined
     @State private var screenRecordingOK = false
@@ -33,38 +43,7 @@ struct AdvancedSettingsView: View {
     var body: some View {
         // swiftlint:disable:next closure_body_length
         Form {
-            Section("Permissions") {
-                PermissionRow(
-                    label: "Screen Recording",
-                    detail: Self.screenRecordingDetail,
-                    granted: screenRecordingOK,
-                    help: "\(SystemSettingsPaths.screenRecording) → enable Meeting Transcriber",
-                    settingsURL: PrivacyPane.screenCapture.url,
-                )
-                PermissionRow(
-                    label: "Microphone",
-                    detail: micPermission == .authorized ? "Granted"
-                        : micPermission == .notDetermined ? "Will prompt on first recording"
-                        : "Denied — click to open Settings",
-                    granted: micPermission == .authorized,
-                    warning: micPermission == .notDetermined,
-                    help: "System Settings → Privacy & Security → Microphone → enable Meeting Transcriber",
-                    settingsURL: PrivacyPane.microphone.url,
-                )
-                PermissionRow(
-                    label: "Accessibility",
-                    detail: "Optional — enables mute detection and meeting naming",
-                    granted: accessibilityOK,
-                    optional: true,
-                    help: "System Settings → Privacy & Security → Accessibility → enable Meeting Transcriber",
-                    settingsURL: PrivacyPane.accessibility.url,
-                )
-
-                Button("Refresh") {
-                    refreshPermissions()
-                }
-                .font(.caption)
-            }
+            permissionsSection
 
             // swiftlint:disable:next closure_body_length
             Section("Diagnostics") {
@@ -129,15 +108,75 @@ struct AdvancedSettingsView: View {
         .onAppear { refreshPermissions() }
     }
 
-    #if APPSTORE
-        private static let screenRecordingDetail = "Required for app audio capture"
-    #else
-        private static let screenRecordingDetail = "Required for meeting detection and app audio capture"
-    #endif
+    /// Microphone first because it is the one grant that blocks a recording,
+    /// then the tap's grant, then the two optional ones. Its own property so
+    /// the `Form` body stays under the type-check budget.
+    private var permissionsSection: some View {
+        // swiftlint:disable:next closure_body_length
+        Section("Permissions") {
+            PermissionRow(
+                label: "Microphone",
+                detail: micPermission == .authorized ? "Granted"
+                    : micPermission == .notDetermined ? "Will prompt on first recording"
+                    : "Denied — click to open Settings",
+                granted: micPermission == .authorized,
+                warning: micPermission == .notDetermined,
+                help: "System Settings → Privacy & Security → Microphone → enable Meeting Transcriber",
+                settingsURL: PrivacyPane.microphone.url,
+            )
+            // The grant the app-audio tap runs on. macOS asks at the first
+            // tap creation and offers no way to read the answer back, so the
+            // row cannot show a status; what it can do is name the pane for a
+            // user whose app-audio tracks came back silent.
+            PermissionRow(
+                label: "Audio Recording",
+                detail: "Status cannot be read back — macOS asks on the first app-audio recording. "
+                    + "If app-audio tracks are silent from the start, enable it here",
+                granted: false,
+                unknown: true,
+                help: "\(SystemSettingsPaths.audioRecording) → enable Meeting Transcriber",
+                settingsURL: PrivacyPane.audioCapture.url,
+            )
+            PermissionRow(
+                label: "Screen Recording",
+                detail: "Optional — improves meeting titles (window names). Not needed for detection or audio capture",
+                granted: screenRecordingOK,
+                optional: true,
+                help: "\(SystemSettingsPaths.screenRecording) → enable Meeting Transcriber",
+                settingsURL: PrivacyPane.screenCapture.url,
+            )
+            if !screenRecordingOK {
+                // Asking is what registers the app in the pane at all;
+                // preflighting never does, so without this the "Open System
+                // Settings" link above lands on a list the app is absent from.
+                // The request happens here and nowhere else (not at watch
+                // start): the grant is optional, so the ask belongs where the
+                // user has just read what it buys.
+                Button("Request Access…") {
+                    requestScreenRecording()
+                }
+                .font(.caption)
+                .accessibilityIdentifier(A11yID.screenRecordingRequestButton)
+            }
+            PermissionRow(
+                label: "Accessibility",
+                detail: "Optional — reads Teams participant names for speaker suggestions",
+                granted: accessibilityOK,
+                optional: true,
+                help: "System Settings → Privacy & Security → Accessibility → enable Meeting Transcriber",
+                settingsURL: PrivacyPane.accessibility.url,
+            )
+
+            Button("Refresh") {
+                refreshPermissions()
+            }
+            .font(.caption)
+        }
+    }
 
     private func refreshPermissions() {
         micPermission = AVCaptureDevice.authorizationStatus(for: .audio)
-        screenRecordingOK = Permissions.checkScreenRecording()
+        screenRecordingOK = checkScreenRecording()
         accessibilityOK = AXIsProcessTrusted()
     }
 

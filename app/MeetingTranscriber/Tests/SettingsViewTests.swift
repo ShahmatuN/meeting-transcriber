@@ -475,9 +475,29 @@ final class SettingsViewTests: XCTestCase { // swiftlint:disable:this type_body_
 
     func testPermissionsSectionExists() throws {
         let body = try makeAdvanced().inspect()
-        XCTAssertNoThrow(try body.find(text: "Screen Recording"))
         XCTAssertNoThrow(try body.find(text: "Microphone"))
+        XCTAssertNoThrow(try body.find(text: "Audio Recording"))
+        XCTAssertNoThrow(try body.find(text: "Screen Recording"))
         XCTAssertNoThrow(try body.find(text: "Accessibility"))
+    }
+
+    /// The only place the app asks for Screen Recording. Rendered while the
+    /// grant is missing (the view's initial state, before any probe), and wired
+    /// to the injected request rather than to a TCC call the test host cannot
+    /// make. The probe seam stays unused: `@State` written from `onAppear` is
+    /// not readable through a later `inspect()` (see CLAUDE.md, GUI Testing).
+    func testScreenRecordingRequestButtonIsWiredToTheRequest() throws {
+        var requested = false
+        let view = AdvancedSettingsView(
+            settings: makeSettings(),
+            checkScreenRecording: { false },
+            requestScreenRecording: { requested = true },
+        )
+        let button = try view.inspect()
+            .find(viewWithAccessibilityIdentifier: A11yID.screenRecordingRequestButton)
+            .find(ViewType.Button.self)
+        try button.tap()
+        XCTAssertTrue(requested)
     }
 
     #if !APPSTORE
