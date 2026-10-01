@@ -213,6 +213,20 @@ PRs are excluded from the self-hosted runner.
   lane is first brought up.
 - Limitation: like `e2e-app`, self-hosted mini only; the fixture's Chrome
   assertion wording is Chrome-version-dependent (the likeliest flake vector).
+- **Google Meet auto-record mode (`--auto-record`, Chrome + fixture only):** the
+  same lane with `autoRecordGoogleMeet` on and
+  `MEETINGTRANSCRIBER_DEBUG_FAKE_TAB_URLS=https://meet.google.com/abc-defg-hij`
+  delivered through `open --env`, so `BrowserAutoRecordPolicy` sees a Meet
+  call tab without a real one (the fixture page is not Meet) and without an
+  Automation grant for Chrome on the runner (the real `osascript` read is
+  manual QA). It asserts the inverse of the consent lane: `pendingConsentApp`
+  stays empty for the whole detection window, no "Record browser meeting?"
+  notification is posted, `watchState` reaches `recording` on its own, and the
+  sidecar title starts with `Google Meet` (the Meet code the policy derives
+  from the URL, which is the one proof the loop took the fake tab). Both modes
+  run on every event in `e2e-browser.yml`, since they share one branch of the
+  poll loop. The plain run writes `autoRecordGoogleMeet=false` explicitly, so
+  it proves the prompt still parks with the switch off rather than absent.
 - **Real-meeting variant (`--jitsi`, `scripts/fixtures/jitsi-keeper.mjs`):** the
   synthetic fixture is an in-page `pc1↔pc2` loopback, not a real remote meeting.
   `e2e-browser.sh --jitsi` instead drives Chrome via CDP (puppeteer-core) so two

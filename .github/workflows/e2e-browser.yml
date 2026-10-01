@@ -102,6 +102,18 @@ jobs:
         timeout-minutes: 12
         run: bash scripts/e2e-browser.sh
 
+      # Google Meet auto-record: the same Chrome + fixture, but with
+      # autoRecordGoogleMeet on and a fake meet.google.com call tab handed to
+      # the loop over the debug environment, asserting that NO consent prompt
+      # parks and recording starts on its own. Runs on every event alongside
+      # the consent-path run above, because the two share one branch in the
+      # poll loop and a regression in either half is a PR-time regression.
+      # Reuses the bundle the step above built + signed (--no-build).
+      - name: Run browser-meeting E2E driver (Chrome, Google Meet auto-record)
+        if: ${{ !cancelled() }}
+        timeout-minutes: 8
+        run: bash scripts/e2e-browser.sh --auto-record --no-build
+
       # Chromium forks (issue #503 follow-up): Brave/Edge/Chromium hold the same
       # "WebRTC has active PeerConnections" assertion and detect under the shared
       # "Google Chrome" identity, so the same fixture lane proves each end to end.

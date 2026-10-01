@@ -12,6 +12,13 @@
 #     → sidecar + _app.wav
 #     → ASSERT: _app.wav is NOT silent (the CATap actually tapped Chrome audio)
 #
+#   --auto-record swaps the consent hop for the Google Meet auto-record path:
+#   autoRecordGoogleMeet is on and MEETINGTRANSCRIBER_DEBUG_FAKE_TAB_URLS hands
+#   the loop a meet.google.com call tab (the fixture page is not Meet and the
+#   runner holds no Automation grant for Chrome), so the lane asserts that NO
+#   prompt parks, that recording starts on its own, and that the sidecar is
+#   titled after the Meet code. The real osascript tab read is manual QA.
+#
 # Runs on the same self-hosted Mac mini as e2e-app.sh. Detection uses the
 # power-assertion path (no Screen Recording needed) and consent is answered
 # over RPC (no clickable notification needed), so it works headless. Chrome
@@ -28,6 +35,7 @@ NO_BUILD=false     # skip build/deploy/re-sign — use ~/Applications bundle as-
 KEEP_APP=false     # leave the dev app running on exit
 KEEP_CHROME=false  # leave the fixture browser instance open on exit
 MODE=fixture       # meeting source: fixture (in-page loopback) | jitsi (real SFU)
+AUTO_RECORD=false  # skip the consent hop via autoRecordGoogleMeet + a fake Meet tab
 JITSI_HOST=meet.ffmuc.net  # real public Jitsi (no login) for --jitsi mode
 BROWSER=chrome     # which Chromium browser to drive: chrome | brave | edge | chromium
 
@@ -38,10 +46,11 @@ while [ $# -gt 0 ]; do
         --keep-chrome) KEEP_CHROME=true ;;
         --jitsi)       MODE=jitsi ;;
         --jitsi-host)  shift; JITSI_HOST="$1" ;;
+        --auto-record) AUTO_RECORD=true ;;
         --browser)     shift; BROWSER="$1" ;;
         -h|--help)
             cat <<'HELP'
-Usage: e2e-browser.sh [--no-build] [--keep-app] [--keep-chrome] [--browser NAME] [--jitsi [--jitsi-host HOST]]
+Usage: e2e-browser.sh [--no-build] [--keep-app] [--keep-chrome] [--browser NAME] [--auto-record] [--jitsi [--jitsi-host HOST]]
 
   --no-build     Skip build/deploy/re-sign; use ~/Applications/MeetingTranscriber-Dev.app as-is.
   --keep-app     Leave the dev app running on exit (default: quit it).
@@ -53,6 +62,9 @@ Usage: e2e-browser.sh [--no-build] [--keep-app] [--keep-chrome] [--browser NAME]
                  meeting; getUserMedia overridden to a tone so no mic/TCC is needed).
                  Best-effort — depends on a third-party public Jitsi being reachable.
   --jitsi-host   Jitsi host for --jitsi (default meet.ffmuc.net, a no-login public instance).
+  --auto-record  Google Meet auto-record mode: turn autoRecordGoogleMeet on and feed the app a
+                 fake meet.google.com call tab (MEETINGTRANSCRIBER_DEBUG_FAKE_TAB_URLS), then
+                 assert recording starts with NO consent prompt. Chrome, fixture mode only.
 HELP
             exit 0 ;;
         *) echo "unknown arg: $1" >&2; exit 2 ;;
@@ -90,6 +102,10 @@ case "$BROWSER" in
     *) echo "unknown --browser '$BROWSER' (expected chrome|brave|edge|chromium)" >&2; exit 2 ;;
 esac
 [ "$MODE" = jitsi ] && [ "$BROWSER" != chrome ] && { echo "--jitsi supports chrome only" >&2; exit 2; }
+# The policy is Chrome-only by design (BrowserAutoRecordPolicy.supportedProcesses),
+# so another browser here would assert on a prompt that is supposed to appear.
+[ "$AUTO_RECORD" = true ] && [ "$BROWSER" != chrome ] && { echo "--auto-record supports chrome only" >&2; exit 2; }
+[ "$AUTO_RECORD" = true ] && [ "$MODE" = jitsi ] && { echo "--auto-record and --jitsi are exclusive" >&2; exit 2; }
 # Resolve from an explicit BROWSER_APP override, then the user Applications dir,
 # then the system one. A self-hosted runner whose user can't write /Applications
 # (no passwordless sudo) installs browsers under ~/Applications, so check there too.
@@ -157,6 +173,7 @@ _set_dev_bool() {
 # Per-domain snapshots of the behaviour toggles this lane flips, so cleanup
 # restores EACH domain to exactly its own prior value (empty → delete).
 _PRE_BROWSER_STD=""; _PRE_BROWSER_CTR=""
+_PRE_AUTORECORD_STD=""; _PRE_AUTORECORD_CTR=""
 _PRE_RECORDONLY_STD=""; _PRE_RECORDONLY_CTR=""
 _PRE_NOMIC_STD=""; _PRE_NOMIC_CTR=""
 
@@ -223,10 +240,12 @@ fi
 
 # Snapshot the behaviour toggles per domain before flipping them.
 _PRE_BROWSER_STD="$(snapshot_default "$_STANDARD_PLIST" watchBrowserMeetings)"
+_PRE_AUTORECORD_STD="$(snapshot_default "$_STANDARD_PLIST" autoRecordGoogleMeet)"
 _PRE_RECORDONLY_STD="$(snapshot_default "$_STANDARD_PLIST" recordOnly)"
 _PRE_NOMIC_STD="$(snapshot_default "$_STANDARD_PLIST" noMic)"
 if [ -f "$_CONTAINER_PLIST" ]; then
     _PRE_BROWSER_CTR="$(snapshot_default "$_CONTAINER_PLIST" watchBrowserMeetings)"
+    _PRE_AUTORECORD_CTR="$(snapshot_default "$_CONTAINER_PLIST" autoRecordGoogleMeet)"
     _PRE_RECORDONLY_CTR="$(snapshot_default "$_CONTAINER_PLIST" recordOnly)"
     _PRE_NOMIC_CTR="$(snapshot_default "$_CONTAINER_PLIST" noMic)"
 fi
@@ -237,6 +256,9 @@ _set_dev_bool autoWatch true
 _set_dev_bool watchBrowserMeetings true   # append the browser category to watchApps
 _set_dev_bool recordOnly true             # sidecar + WAVs, skip transcription/protocol
 _set_dev_bool noMic true                  # app-track only; no mic needed for the proof
+# Written explicitly in BOTH modes: the consent-path run must prove the prompt
+# still parks with the switch off, not merely with the switch absent.
+_set_dev_bool autoRecordGoogleMeet "$AUTO_RECORD"
 
 mkdir -p "$RECORDINGS_DIR"
 touch "$RUN_MARKER"
@@ -249,7 +271,16 @@ rm -f "/tmp/e2e-browser-$BROWSER-app.wav" "/tmp/e2e-browser-$BROWSER-meta.json"
 # --- launch + cleanup trap ------------------------------------------------
 
 log "Launching $DEV_BUNDLE_DEPLOY"
-open "$DEV_BUNDLE_DEPLOY"
+if [ "$AUTO_RECORD" = true ]; then
+    # `open --env` carries the variable to the launched process (a leading
+    # `env` does not — see e2e-permission-health.sh). The URL is the shape
+    # BrowserAutoRecordPolicy.meetCode accepts; the title assertion below
+    # pins that this is what the loop read.
+    FAKE_MEET_TAB="https://meet.google.com/abc-defg-hij"
+    open --env "MEETINGTRANSCRIBER_DEBUG_FAKE_TAB_URLS=$FAKE_MEET_TAB" "$DEV_BUNDLE_DEPLOY"
+else
+    open "$DEV_BUNDLE_DEPLOY"
+fi
 
 _ON_EXIT_RAN=""
 on_exit() {
@@ -260,10 +291,12 @@ on_exit() {
     [ "$KEEP_APP" = false ] && quit_running_app || true
     # Restore the behaviour toggles per domain (empty snapshot → delete).
     restore_bool_default "$_STANDARD_PLIST" watchBrowserMeetings "$_PRE_BROWSER_STD"
+    restore_bool_default "$_STANDARD_PLIST" autoRecordGoogleMeet "$_PRE_AUTORECORD_STD"
     restore_bool_default "$_STANDARD_PLIST" recordOnly "$_PRE_RECORDONLY_STD"
     restore_bool_default "$_STANDARD_PLIST" noMic "$_PRE_NOMIC_STD"
     if [ -f "$_CONTAINER_PLIST" ]; then
         restore_bool_default "$_CONTAINER_PLIST" watchBrowserMeetings "$_PRE_BROWSER_CTR"
+        restore_bool_default "$_CONTAINER_PLIST" autoRecordGoogleMeet "$_PRE_AUTORECORD_CTR"
         restore_bool_default "$_CONTAINER_PLIST" recordOnly "$_PRE_RECORDONLY_CTR"
         restore_bool_default "$_CONTAINER_PLIST" noMic "$_PRE_NOMIC_CTR"
     fi
@@ -309,6 +342,13 @@ _RESOLVED_RECORD_ONLY="$(jq -r '.settings.recording.recordOnly' <<<"$_SNAP")"
 [ "$_RESOLVED_RECORD_ONLY" = "true" ] \
     || fail "the app resolved settings.recording.recordOnly=$_RESOLVED_RECORD_ONLY, this lane needs true. Most likely the preference write did not reach the domain the app reads (see write_dev_default in scripts/lib/e2e-helpers.sh); the other possibility is that a different MeetingTranscriber instance is answering on 127.0.0.1:9876."
 log "app resolved recordOnly=true (as configured)"
+# Same blind spot for the switch this mode turns on: a write that missed the
+# domain would leave the consent path active, the prompt would park, and the
+# "no prompt" assertion below would report that as the feature failing.
+_RESOLVED_AUTO_RECORD="$(jq -r '.settings.detection.autoRecordGoogleMeet // "absent"' <<<"$_SNAP")"
+[ "$_RESOLVED_AUTO_RECORD" = "$AUTO_RECORD" ] \
+    || fail "the app resolved settings.detection.autoRecordGoogleMeet=$_RESOLVED_AUTO_RECORD, this run needs $AUTO_RECORD (see write_dev_default in scripts/lib/e2e-helpers.sh)"
+log "app resolved autoRecordGoogleMeet=$AUTO_RECORD (as configured)"
 
 # The lane answers the consent prompt over RPC, which resolves the parked
 # continuation whether or not a notification was ever posted, authorised or
@@ -423,6 +463,33 @@ else
     KEEPER_PID=$!
 fi
 
+_watch_state_is_recording() { [ "$(_watch_state)" = "recording" ]; }
+
+if [ "$AUTO_RECORD" = true ]; then
+    # --- auto-record: no prompt, recording starts on its own ----------------
+    # The negative half first and for the whole detection window: the prompt
+    # must never park. Polling pendingConsentApp alongside the recording wait
+    # is what makes this falsifiable — a loop that prompted AND then recorded
+    # (because a stale approval leaked in) would reach "recording" too.
+    log "Waiting up to ${DETECT_TIMEOUT_S}s for recording to start WITHOUT a consent prompt"
+    _auto_recording_without_prompt() {
+        assert_app_alive
+        local pending
+        pending="$(rpc /state | jq -r '.pendingConsentApp // ""')"
+        [ -z "$pending" ] || fail "a consent prompt parked for '$pending' although autoRecordGoogleMeet is on and a Meet tab was supplied — the auto-record branch did not take the meeting"
+        _watch_state_is_recording
+    }
+    poll_until "$DETECT_TIMEOUT_S" 2 _auto_recording_without_prompt || {
+        _dump_detection_diag
+        fail "watchState never reached 'recording' within ${DETECT_TIMEOUT_S}s in --auto-record mode (and no prompt parked either): detection or the auto-record branch did not fire"
+    }
+    [ -z "$(rpc /state | jq -r '.pendingConsentApp // ""')" ] \
+        || fail "a consent prompt is parked while recording in --auto-record mode"
+    [ "$(rpc /state | jq -r '[.notifications[]? | select(.title == "Record browser meeting?")] | length')" = "0" ] \
+        || fail "a 'Record browser meeting?' notification was posted in --auto-record mode — the user was asked after all"
+    log "Recording started with no consent prompt (auto-record)"
+else
+
 # The prompt parks while the watch loop keeps polling (issue #543), and
 # `/state.pendingConsentApp` reports that from outside. Assert it before
 # answering: it is the only signal that separates "detected, waiting for an
@@ -500,9 +567,9 @@ poll_until 10 1 _consent_notification_posted \
 log "Consent notification was posted and flagged deliverable"
 
 log "Waiting for recording to start (watchState == recording)"
-_is_recording() { [ "$(_watch_state)" = "recording" ]; }
-poll_until "$DETECT_TIMEOUT_S" 2 _is_recording \
+poll_until "$DETECT_TIMEOUT_S" 2 _watch_state_is_recording \
     || fail "watchState never reached 'recording' after consent"
+fi # AUTO_RECORD
 log "Recording started; capturing ${RECORD_SECONDS}s of tone"
 sleep "$RECORD_SECONDS"
 
@@ -533,6 +600,17 @@ SIDECAR_TRIGGER="$(jq -r '.trigger // "absent"' "$SIDECAR")"
 [ "$SIDECAR_TRIGGER" = "auto" ] \
     || fail "consented browser meeting must be labelled trigger=auto (got: $SIDECAR_TRIGGER)"
 
+if [ "$AUTO_RECORD" = true ]; then
+    # The title is the one evidence that the LOOP took the fake tab: a recording
+    # that started for some other reason would carry the "<browser> Call"
+    # placeholder, not the Meet code the policy derives from the URL.
+    SIDECAR_TITLE="$(jq -r '.title // ""' "$SIDECAR")"
+    case "$SIDECAR_TITLE" in
+        "Google Meet "*) log "Sidecar title: $SIDECAR_TITLE" ;;
+        *) fail "auto-recorded meeting must be titled after the Meet code (got: '$SIDECAR_TITLE')" ;;
+    esac
+fi
+
 APP_WAV="${SIDECAR%_meta.json}_app.wav"
 [ -f "$APP_WAV" ] || fail "no _app.wav next to the sidecar ($APP_WAV)"
 
@@ -555,4 +633,8 @@ log "Verdict on the captured app track:"
 "$MTCLI" wav-verdict "$APP_WAV" --threshold-dbfs=-50 --min-active-seconds=5 \
     || fail "the CATap did not capture enough of Chrome's browser-meeting audio (reason above)"
 
-log "PASS ($BROWSER_LABEL): browser detection → RPC consent → non-silent CATap capture of the app track"
+if [ "$AUTO_RECORD" = true ]; then
+    log "PASS ($BROWSER_LABEL): browser detection → Google Meet auto-record (no prompt) → non-silent CATap capture of the app track"
+else
+    log "PASS ($BROWSER_LABEL): browser detection → RPC consent → non-silent CATap capture of the app track"
+fi
