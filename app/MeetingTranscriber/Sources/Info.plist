@@ -34,6 +34,8 @@
     <string>Meeting Transcriber reads the title and attendees of the calendar event running during a recording to name the recording and suggest speaker names. Nothing is written to your calendar.</string>
     <key>NSCalendarsUsageDescription</key>
     <string>Meeting Transcriber reads the title and attendees of the calendar event running during a recording to name the recording and suggest speaker names.</string>
+    <key>NSAppleEventsUsageDescription</key>
+    <string>Meeting Transcriber asks Google Chrome for the addresses of its open tabs to recognise a Google Meet call. Used only when “Auto-record Google Meet in Chrome” is on.</string>
     <key>NSAccessibilityUsageDescription</key>
     <string>Meeting Transcriber uses Accessibility to detect mute state and read meeting participants.</string>
 </dict>
