@@ -653,10 +653,12 @@ side.
 ## Notes and limitations
 
 - **Starting watching can trigger a system permission prompt.** The first
-  `POST /v1/watch` with `start` on a fresh install asks for microphone (and
-  possibly Screen Recording) access, which surfaces as a macOS dialog. Triggered
-  from a button press or a schedule that dialog arrives unannounced, so grant
-  the permissions once interactively before relying on remote control. Check
+  `POST /v1/watch` with `start` on a fresh install asks for microphone access,
+  and the first app-audio recording triggers the macOS "Audio Recording"
+  prompt; both surface as a macOS dialog. Triggered from a button press or a
+  schedule that dialog arrives unannounced, so grant the permissions once
+  interactively before relying on remote control. Screen Recording is never
+  requested here: it is optional (meeting titles only). Check
   `permissionsHealthy` in the response to detect the state where the app cannot
   actually record.
 - **Speaker DB is read-only on the headless path.** The blocking

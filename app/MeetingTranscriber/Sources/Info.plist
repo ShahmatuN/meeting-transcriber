@@ -29,7 +29,7 @@
     <key>NSMicrophoneUsageDescription</key>
     <string>Meeting Transcriber needs microphone access to record meeting audio for transcription.</string>
     <key>NSScreenCaptureUsageDescription</key>
-    <string>Meeting Transcriber needs Screen Recording permission to detect active meetings by reading window titles.</string>
+    <string>Meeting Transcriber can optionally read window titles to name recordings after the meeting. Detection and audio capture do not need this.</string>
     <key>NSAccessibilityUsageDescription</key>
     <string>Meeting Transcriber uses Accessibility to detect mute state and read meeting participants.</string>
 </dict>

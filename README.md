@@ -169,10 +169,10 @@ cd meeting-transcriber
 
 | Permission | Required for | Notes |
 |------------|-------------|-------|
-| Screen Recording | Optional — sharpens the meeting *title* and acts as a fallback for the audio tap. Detection itself works without it | System Settings → Privacy & Security |
 | Microphone | Mic recording | Prompted on first use |
-| Accessibility | Mute detection, participant reading (Teams) | System Settings → Privacy & Security |
-| App audio capture | — | No permission needed (purple dot indicator only) |
+| Audio Recording (system audio) | App-audio capture via the Core Audio process tap | macOS prompts on the first app-audio recording. There is no API to read this grant back, so Settings → Advanced shows it as unknown; a tap that was refused delivers silence and the app reports that as a "Capture Channel Silent" notification. Listed under System Settings → Privacy & Security → Screen & System Audio Recording → System Audio Recording Only |
+| Screen Recording | Optional — improves the meeting *title* (window names). Not needed for detection or audio capture. The app never asks for it on its own; request it from Settings → Advanced if you want titles | System Settings → Privacy & Security → Screen & System Audio Recording |
+| Accessibility | Optional — participant reading (Teams) | System Settings → Privacy & Security |
 
 ---
 
@@ -196,11 +196,12 @@ The app uses an animated waveform icon in the menu bar that reflects the current
 <img src="docs/menu-bar-permission.gif" width="80" alt="Permission problem">
 </p>
 
-A red exclamation mark in the bottom-right corner is overlaid on top of the current icon (idle, recording, transcribing, …) whenever one of the required permissions is missing or broken. It means at least one of the following is not in a working state:
+A red exclamation mark in the bottom-right corner is overlaid on top of the current icon (idle, recording, transcribing, …) whenever one of the checked permissions is missing or broken. It means at least one of the following is not in a working state:
 
 - **Microphone** — denied, or granted but the capture engine can't open the device
-- **Screen Recording** — denied, or granted but `CGWindowListCopyWindowInfo` returns no window titles (TCC state out of sync)
-- **Accessibility** — denied, or granted but the AX API refuses to read Teams participant/mute info
+- **Accessibility** — denied, or granted but the AX API refuses to read Teams participant info
+
+Screen Recording is not part of the badge: it is optional (meeting titles only), and a withheld grant is reported in Settings → Advanced and on `/state` but is never an error.
 
 The health check distinguishes *denied* from *broken*. "Broken" usually means the permission is toggled on in System Settings but macOS hasn't actually wired it through — the fix is to toggle the permission off and on again for Meeting Transcriber under **System Settings → Privacy & Security**. Open the menu bar dropdown to see which specific permission is affected; a notification is also posted when the state changes.
 

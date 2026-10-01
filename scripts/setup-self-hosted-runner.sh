@@ -18,9 +18,11 @@
 # What you do once after this script:
 #   - Launch the deployed .app (e.g. `open ~/Applications/MeetingTranscriber-Dev.app`).
 #   - When macOS prompts for Microphone, click Allow.
-#   - When the app first tries to detect a meeting via Screen Recording,
-#     System Settings → Privacy & Security → Screen & System Audio
-#     Recording → toggle on for MeetingTranscriber-Dev.app.
+#   - When macOS prompts for Audio Recording at the first app-audio
+#     recording, click Allow (it lists under System Settings → Privacy &
+#     Security → Screen & System Audio Recording → System Audio Recording
+#     Only). Screen Recording itself is optional (meeting titles) and the
+#     app never asks for it.
 #   - From that point on, every rebuild keeps the same cert leaf SHA-1, so
 #     TCC keeps the grants — scripts/e2e-app.sh runs end-to-end.
 #
@@ -272,14 +274,15 @@ Next (one-time, in the GUI session as user '$USER'):
   2. macOS will prompt for Microphone the first time the app tries to
      record. Click Allow.
 
-  3. macOS may also prompt for Screen Recording (used for meeting
-     detection via window titles). Allow it. Or pre-grant via System
-     Settings → Privacy & Security → Screen & System Audio Recording →
-     "+" → $APP_BUNDLE_PATH.
+  3. macOS prompts for Audio Recording the first time the app taps a
+     process's audio. Allow it. Screen Recording is optional (meeting
+     titles only) and is never requested by the app; leave it off unless
+     you want window titles in the e2e output.
 
   4. Verify in System Settings → Privacy & Security:
        - Microphone               → MeetingTranscriber-Dev.app on
-       - Screen & System Audio Recording → MeetingTranscriber-Dev.app on
+       - Screen & System Audio Recording → System Audio Recording Only
+         lists MeetingTranscriber-Dev.app on
 
 After that, scripts/e2e-app.sh rebuilds + redeploys, the cert leaf SHA-1
 stays $CERT_HASH across rebuilds, and TCC keeps the grants automatically.

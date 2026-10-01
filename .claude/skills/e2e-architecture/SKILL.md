@@ -273,12 +273,16 @@ PRs are excluded from the self-hosted runner.
    the grant on the cert leaf SHA-1.
 4. In the GUI session, launch the deployed `.app`
    (`open ~/Applications/MeetingTranscriber-Dev.app`). Click "Allow" on the
-   Microphone prompt, and toggle the dev `.app` on under System Settings →
-   Privacy & Security → Screen & System Audio Recording (used for window-title
-   meeting detection — the e2e also has a sandbox-safe power-assertion detector,
-   so this one is belt-and-suspenders).
-5. Verify Microphone + Screen & System Audio Recording show the dev `.app`
-   with the toggle on.
+   Microphone prompt, and on the "Audio Recording" prompt macOS raises at the
+   first app-audio recording (that grant is what the process tap runs on; it
+   lists under System Settings → Privacy & Security → Screen & System Audio
+   Recording → System Audio Recording Only). Screen Recording itself is
+   optional (meeting titles only) and the app never asks for it; a runner
+   without it is the configuration `e2e-permission-health.sh` is most useful
+   on, since it pins that the aggregate stays healthy regardless.
+5. Verify Microphone shows the dev `.app` with the toggle on, and that the
+   recording lanes produce a non-silent `_app.wav` (the only readback the Audio
+   Recording grant has).
 6. Grant **Accessibility** and **Automation** for the `--naming-escape` lane.
    Nothing else needs them, and they are of a different shape than the grants
    above: they key on a *binary path* and a *user account*, not on the app's

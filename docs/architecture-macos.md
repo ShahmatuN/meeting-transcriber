@@ -376,7 +376,7 @@ The icon is rendered as a SwiftUI `Image` template (auto-tinted by AppKit for li
 <img src="menu-bar-permission.gif" width="80" alt="Permission problem badge">
 </p>
 
-A red circle with a white "!" is composited in the bottom-right corner by `MenuBarIcon.drawExclamationBadge` whenever `PermissionHealthCheck` reports any of Microphone / Screen Recording / Accessibility as `.denied` or `.broken`. The overlay sits **on top of whatever primary state animation** is currently active — the user still sees what the app is doing while being told something is wrong. See "Permission health check + badge overlay" below for the full health-check semantics.
+A red circle with a white "!" is composited in the bottom-right corner by `MenuBarIcon.drawExclamationBadge` whenever `PermissionHealthCheck` reports Microphone or Accessibility as `.denied` or `.broken` (Screen Recording is optional and never badges). The overlay sits **on top of whatever primary state animation** is currently active — the user still sees what the app is doing while being told something is wrong. See "Permission health check + badge overlay" below for the full health-check semantics.
 
 ### Record-only mode badge
 
@@ -417,7 +417,7 @@ AudioTapLib (CATapDescription)
 └─ Metadata: micDelay, actualSampleRate, actualChannels via AudioCaptureResult
 ```
 
-**Key:** CATapDescription requires NO Screen Recording permission (purple dot indicator only). Handles output device changes by recreating tap automatically.
+**Key:** CATapDescription runs on the `NSAudioCaptureUsageDescription` "Audio Recording" grant (macOS prompts at first tap creation; Screen Recording is an alternative grant the tap also accepts, but the app does not ask for it). Handles output device changes by recreating tap automatically.
 
 **Start order (issue #693):** `AudioCaptureSession.start()` opens the microphone first and the app tap second, and the order is load-bearing. Opening the input takes a Bluetooth headset out of A2DP into its call profile; with the tap opened first, the disturbance landed underneath an aggregate device that had been created and started but had not yet run its first IO cycle, and the tap then delivered nothing for the rest of the recording (no IO callback, zero bytes, no error). Measured with a throwaway probe that is not in this repository: 9 failures in 30 starts with the tap first, 0 in 30 with the microphone first, which bounds what is left rather than proving it gone. **The full argument, including what the order does and does not guarantee and the three accepted costs, is the doc comment on `AudioCaptureSession.start()`; it is kept in one place on purpose.** Downstream, the measured `micDelay` is now normally negative (the microphone leads), which `MicDelayNormalisation` turns into a padded app track and a reported delay of 0; two cases it does not cover are a dual-source recording whose `_mic.wav` turns out unreadable, where the raw negative value is still what gets reported, and a crash-recovered recording, which `DualSourceRecorder.recoverCrashedRecording` rebuilds with a hard-coded `micDelay: 0` and therefore does not realign at all.
 
@@ -676,14 +676,14 @@ AppSettings (UserDefaults)
 
 | Permission | Required For | Notes |
 |------------|-------------|-------|
-| Screen Recording | Meeting detection (window titles) | CGWindowListCopyWindowInfo |
 | Microphone | Mic recording | AVAudioEngine |
-| Accessibility | Mute detection, participant reading | Teams AX tree |
-| None | App audio capture | CATapDescription (purple dot only) |
+| Audio Recording (`NSAudioCaptureUsageDescription`) | App audio capture | CATapDescription; prompted at first tap creation, no preflight API (issue #524) |
+| Screen Recording | Optional: meeting titles (window names) | CGWindowListCopyWindowInfo; never requested by the app itself, only from Settings → Advanced |
+| Accessibility | Optional: participant reading (Teams) | Teams AX tree |
 
 ### Permission health check + badge overlay
 
-`PermissionHealthCheck` verifies each of the three TCC permissions by combining the system verdict with a live probe (e.g. `CGWindowListCopyWindowInfo` returning non-empty window titles for Screen Recording). Each permission resolves to `PermissionStatus.healthy | .denied | .broken | .notDetermined` — `.broken` means "TCC says allowed but the probe disagrees," which happens when macOS hasn't actually wired the permission through and the user needs to toggle it off and on in System Settings.
+`PermissionHealthCheck` probes Microphone, Accessibility and Screen Recording, combining the system verdict with a live probe where one exists. Each resolves to `PermissionStatus.healthy | .denied | .broken | .notDetermined` — `.broken` means "TCC says allowed but the probe disagrees," which happens when macOS hasn't actually wired the permission through and the user needs to toggle it off and on in System Settings. Only Microphone and Accessibility produce a `PermissionProblem`; Screen Recording is reported on the result (Settings → Advanced, `/state.permissionHealth.screenRecording`) but is never a problem, because the audio tap runs on the separate Audio Recording grant and Screen Recording only improves meeting titles. The Audio Recording grant itself has no preflight API and is not probed; a refused tap shows up at runtime as a "Capture Channel Silent" fault on a channel that never carried signal.
 
 `WatchLoop` runs the check on startup and `AppState` re-runs it on app activation. When the result is unhealthy:
 
