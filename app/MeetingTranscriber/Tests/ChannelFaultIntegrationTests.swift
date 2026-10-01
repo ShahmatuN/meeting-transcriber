@@ -309,7 +309,7 @@ final class ChannelFaultIntegrationTests: XCTestCase {
             let body = notifier.calls.first { $0.title == "Capture Channel Silent" }?.body
             XCTAssertNotNil(body, "\(ages)")
             XCTAssertEqual(
-                body?.contains(SystemSettingsPaths.screenRecording), isPermissionCandidate,
+                body?.contains(SystemSettingsPaths.audioRecording), isPermissionCandidate,
                 "a tap that already carried audio must not be sent to the permission pane: \(ages)",
             )
         }

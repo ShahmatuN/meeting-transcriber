@@ -24,13 +24,15 @@ final class ChannelFaultMessageTests: XCTestCase {
 
     func testAnAppChannelSilentSinceTheStartStillPointsAtPermissionAndAudioTools() {
         // A tap that never carried a single non-zero sample is the signature of
-        // a missing Screen & System Audio Recording grant (issue #524) or of a
-        // third-party audio utility intercepting the meeting app's output. Both
-        // stay named, because for this case they are the answer.
+        // a missing Audio Recording grant (issue #524) or of a third-party audio
+        // utility intercepting the meeting app's output. Both stay named,
+        // because for this case they are the answer. The grant named is the
+        // tap's own, not Screen Recording: that one is optional for this app
+        // (titles only), and a user sent there finds nothing to fix.
         let message = ChannelHealthController.faultMessage(
             channel: .app, fault: .digitalSilence, everCarriedSignal: false,
         )
-        XCTAssertTrue(message.contains(SystemSettingsPaths.screenRecording))
+        XCTAssertTrue(message.contains(SystemSettingsPaths.audioRecording))
         XCTAssertTrue(message.contains("SoundSource"))
     }
 
@@ -44,7 +46,7 @@ final class ChannelFaultMessageTests: XCTestCase {
             channel: .app, fault: .digitalSilence, everCarriedSignal: true,
         )
         XCTAssertFalse(
-            message.contains(SystemSettingsPaths.screenRecording),
+            message.contains(SystemSettingsPaths.audioRecording),
             "a tap that already worked is not missing a grant",
         )
         XCTAssertFalse(message.contains("SoundSource"))
@@ -66,6 +68,7 @@ final class ChannelFaultMessageTests: XCTestCase {
         let message = ChannelHealthController.faultMessage(
             channel: .app, fault: .noBuffers, everCarriedSignal: true,
         )
+        XCTAssertFalse(message.contains(SystemSettingsPaths.audioRecording))
         XCTAssertFalse(message.contains(SystemSettingsPaths.screenRecording))
     }
 

@@ -138,10 +138,10 @@ extension ChannelHealthController {
 
         case (.app, .digitalSilence, false):
             "The app-audio channel has delivered only silence since this recording started, "
-                + "while the microphone carries audio. Check that Meeting Transcriber is enabled "
-                + "under \(SystemSettingsPaths.screenRecording), and whether a third-party audio "
-                + "tool (SoundSource, Audio Hijack, Loopback, Krisp) is intercepting the meeting "
-                + "app's audio."
+                + "while the microphone carries audio. Check that Meeting Transcriber is allowed "
+                + "under \(SystemSettingsPaths.audioRecording) (macOS asks for this grant on the "
+                + "first app-audio recording), and whether a third-party audio tool (SoundSource, "
+                + "Audio Hijack, Loopback, Krisp) is intercepting the meeting app's audio."
 
         case (.mic, .noBuffers, _):
             "The microphone is delivering no audio to this recording. "
