@@ -375,6 +375,10 @@
                 Self.closeSettings()
                 return HTTPResponse.ok()
 
+            case ("POST", "/action/openMeetings"):
+                Self.openMeetings()
+                return HTTPResponse.ok()
+
             case ("POST", "/action/skipNaming"):
                 // Skips ALL pending speaker-naming jobs in one shot — driver
                 // scripts (e2e-app.sh) just want to drain the queue without
@@ -533,6 +537,15 @@
         static func openSettings() {
             NSApplication.shared.activate(ignoringOtherApps: true)
             NotificationCenter.default.post(name: .showSettings, object: nil)
+        }
+
+        /// Open the Meetings window, the same way as `openSettings`. The window
+        /// stays off the `/screenshot` and `/ui/tree` allowlists: it shows
+        /// meeting titles and transcripts.
+        @MainActor
+        static func openMeetings() {
+            NSApplication.shared.activate(ignoringOtherApps: true)
+            NotificationCenter.default.post(name: .showMeetings, object: nil)
         }
 
         /// Fire-and-forget close. SwiftUI no-ops when the window isn't open.
