@@ -40,7 +40,7 @@ final class RecordingSidecarTests: XCTestCase {
         let sidecar = makeFullSidecar()
         let dict = try encodeAsDict(sidecar)
 
-        XCTAssertEqual(dict["version"] as? Int, 2)
+        XCTAssertEqual(dict["version"] as? Int, 3)
         XCTAssertEqual(dict["title"] as? String, "Standup")
         XCTAssertEqual(dict["appName"] as? String, "Microsoft Teams")
         XCTAssertEqual(dict["participants"] as? [String], ["Alice", "Bob"])
@@ -102,6 +102,44 @@ final class RecordingSidecarTests: XCTestCase {
         XCTAssertEqual(decoded.micDelaySeconds, 0.12, accuracy: 0.0001)
         XCTAssertEqual(decoded.files.mix, "20260503_083000_mix.wav")
         XCTAssertEqual(decoded.trigger, .manual)
+    }
+
+    func test_encode_omitsCalendarFieldsWhenNil() throws {
+        let dict = try encodeAsDict(makeFullSidecar())
+        XCTAssertNil(dict["calendarEventID"])
+        XCTAssertNil(dict["meetingURL"])
+    }
+
+    func test_encode_includesCalendarFieldsWhenMatched() throws {
+        let sidecar = RecordingSidecar(
+            title: "Design Review", appName: "Google Chrome",
+            startedAt: Date(timeIntervalSince1970: 1_777_000_000),
+            stoppedAt: Date(timeIntervalSince1970: 1_777_001_800),
+            participants: ["Alice"], micDelaySeconds: 0, trigger: .auto,
+            mixFilename: "mix.wav", appFilename: nil, micFilename: nil,
+            calendarEventID: "evt-42", meetingURL: "https://meet.google.com/abc-defg-hij",
+        )
+        let dict = try encodeAsDict(sidecar)
+        XCTAssertEqual(dict["calendarEventID"] as? String, "evt-42")
+        XCTAssertEqual(dict["meetingURL"] as? String, "https://meet.google.com/abc-defg-hij")
+    }
+
+    func test_read_version2SidecarDecodesWithoutCalendarFields() throws {
+        // The reimport path reads sidecars written by older builds (and by
+        // fleet clients that have not updated); a required key would discard
+        // the whole file, title and participants included.
+        let json = """
+        {
+          "version": 2, "title": "Legacy", "appName": "Zoom",
+          "startedAt": "2026-05-03T08:30:00Z", "stoppedAt": "2026-05-03T09:00:00Z",
+          "participants": ["Alice"], "micDelaySeconds": 0, "trigger": "auto",
+          "files": { "mix": "mix.wav" }
+        }
+        """
+        let decoded = try XCTUnwrap(readRawSidecar(json))
+        XCTAssertEqual(decoded.title, "Legacy")
+        XCTAssertNil(decoded.calendarEventID)
+        XCTAssertNil(decoded.meetingURL)
     }
 
     func test_read_returnsNilWhenMissing() throws {

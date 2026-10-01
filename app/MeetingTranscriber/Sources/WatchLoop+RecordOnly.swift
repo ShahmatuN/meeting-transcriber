@@ -15,6 +15,7 @@ extension WatchLoop {
         recording: RecordingResult,
         trigger: RecordingSidecar.Trigger,
         participants: [String],
+        scheduled: ScheduledMeeting? = nil,
     ) throws {
         let startedAt = recording.recordingStartDate
         // Guard the sidecar's startedAt <= stoppedAt invariant against a
@@ -55,6 +56,8 @@ extension WatchLoop {
             mixFilename: movedMix.lastPathComponent,
             appFilename: movedApp?.lastPathComponent,
             micFilename: movedMic?.lastPathComponent,
+            calendarEventID: scheduled?.eventID,
+            meetingURL: scheduled?.meetingURL?.absoluteString,
         )
         try sidecar.write(toDirectory: destDir, basename: basename)
         logger.info("Record-only: wrote sidecar + WAVs to \(destDir.path) for \(title, privacy: .private)")

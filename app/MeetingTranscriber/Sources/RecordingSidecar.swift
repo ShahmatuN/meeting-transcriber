@@ -11,8 +11,9 @@ struct RecordingSidecar: Codable {
 
     /// Schema version stamped into every new sidecar. Bump when fields are
     /// added/removed/repurposed so downstream consumers can branch on it.
-    /// 2 added `trigger`.
-    static let currentVersion = 2
+    /// 2 added `trigger`. 3 added the optional `calendarEventID` and
+    /// `meetingURL`.
+    static let currentVersion = 3
 
     /// How the recording was started. Consumers apply different policies to
     /// the two: a very short auto capture is usually a false trigger worth
@@ -34,6 +35,14 @@ struct RecordingSidecar: Codable {
     let participants: [String]
     let micDelaySeconds: TimeInterval
     let files: Files
+    /// The calendar event the recording was matched to, when the calendar
+    /// integration found one (`ScheduledMeeting.eventID`). Shared by every
+    /// occurrence of a recurring event. Optional, like every field added
+    /// after version 1: `read()` is a `try?`, so a required key would make a
+    /// version-2 sidecar unreadable.
+    let calendarEventID: String?
+    /// The conference link on that event, if any, as a string.
+    let meetingURL: String?
 
     /// Raw storage so an unrecognised value decodes as `nil` instead of
     /// throwing. `read()` swallows decode errors, so a strict `Trigger?` would
@@ -58,6 +67,7 @@ struct RecordingSidecar: Codable {
         case version, title, appName, startedAt, stoppedAt
         case participants, micDelaySeconds, files
         case triggerRaw = "trigger"
+        case calendarEventID, meetingURL
     }
 
     init(
@@ -71,8 +81,12 @@ struct RecordingSidecar: Codable {
         mixFilename: String,
         appFilename: String?,
         micFilename: String?,
+        calendarEventID: String? = nil,
+        meetingURL: String? = nil,
     ) {
         self.version = Self.currentVersion
+        self.calendarEventID = calendarEventID
+        self.meetingURL = meetingURL
         self.title = title
         self.appName = appName
         self.startedAt = startedAt

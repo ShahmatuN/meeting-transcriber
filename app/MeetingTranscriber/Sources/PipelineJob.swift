@@ -84,6 +84,13 @@ struct PipelineJob: Identifiable, Codable {
     /// as authoritative meeting context.
     var meetingStartTime: Date?
 
+    /// The calendar event this recording was matched to, when the calendar
+    /// integration found one. The protocol prompt reads it to decide whether
+    /// the title and participants came from an invitation. Optional so
+    /// snapshots written before it existed decode; `nil` also for imports and
+    /// manual recordings, which never consult the calendar.
+    var calendarEventID: String?
+
     /// Timestamp used only for output artifact names. Reimports and recovery
     /// have no real meeting start, so their filenames use enqueue time.
     /// Record where stage 3 left this job's audio.
@@ -181,6 +188,7 @@ struct PipelineJob: Identifiable, Codable {
         micDelay: TimeInterval,
         participants: [String] = [],
         meetingStartTime: Date? = nil,
+        calendarEventID: String? = nil,
         autoSkipNaming: Bool = false,
         // swiftlint:disable:next discouraged_optional_boolean
         includeFullTranscriptInProtocol: Bool? = nil,
@@ -197,6 +205,7 @@ struct PipelineJob: Identifiable, Codable {
         self.participants = participants
         self.enqueuedAt = Date()
         self.meetingStartTime = meetingStartTime
+        self.calendarEventID = calendarEventID
         self.state = .waiting
         self.error = nil
         self.warnings = []

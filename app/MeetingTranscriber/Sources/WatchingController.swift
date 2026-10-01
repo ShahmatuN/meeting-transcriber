@@ -50,6 +50,9 @@ final class WatchingController {
     private let channelHealth: ChannelHealthController
     private let permissions: PermissionsController
     private let liveTranscription: LiveTranscriptionCoordinator
+    /// Calendar lookup for the auto-watch loop (title + attendees of the event
+    /// running at detection). Optional: tests and the manual loop have none.
+    private let calendar: CalendarController?
 
     /// Microphone-access gate. Injectable so tests skip the real TCC prompt; the
     /// return value is intentionally ignored (the loop is created regardless, and
@@ -112,6 +115,7 @@ final class WatchingController {
         channelHealth: ChannelHealthController,
         permissions: PermissionsController,
         liveTranscription: LiveTranscriptionCoordinator,
+        calendar: CalendarController? = nil,
         ensureMicAccess: @escaping () async -> Bool = { await Permissions.ensureMicrophoneAccess() },
         requestAccessibility: @escaping () -> Void = {
             #if !APPSTORE
@@ -128,6 +132,7 @@ final class WatchingController {
         self.channelHealth = channelHealth
         self.permissions = permissions
         self.liveTranscription = liveTranscription
+        self.calendar = calendar
         self.ensureMicAccess = ensureMicAccess
         self.requestAccessibility = requestAccessibility
         self.startJoinTimeout = startJoinTimeout
@@ -233,6 +238,7 @@ final class WatchingController {
                     },
                     notifier: notifier,
                     denyListStore: ConsentDenyListStore(settings: settings),
+                    scheduledMeeting: { [calendar] in calendar?.scheduledMeeting(at: $0) },
                 )
 
                 attachStateChangeHandler(to: loop, notifyOnRecording: true)

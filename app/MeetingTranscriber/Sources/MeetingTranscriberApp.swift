@@ -75,7 +75,12 @@ private struct WindowAccessor: NSViewRepresentable {
 // Not @main — AppLauncher owns the entry point so a selftest launch can
 // divert before this scene (and AppState with it) is ever constructed.
 struct MeetingTranscriberApp: App {
-    @State private var appState = AppState(notifier: NotificationManager.shared)
+    @State private var appState = AppState(
+        notifier: NotificationManager.shared,
+        // The one production construction of the EventKit source; tests get
+        // the null default (see `AppState.makeNullCalendarSource`).
+        calendarSource: EventKitCalendarSource(),
+    )
     @State private var captionsWindow: LiveCaptionsWindowController?
     @Environment(\.openWindow)
     private var openWindow
@@ -257,6 +262,7 @@ struct MeetingTranscriberApp: App {
                 parakeetEngine: appState.engines.parakeetEngine,
                 updateChecker: appState.updateChecker,
                 notificationVisibility: appState.permissions.notificationVisibility,
+                calendar: appState.calendar,
                 // Share the pipeline's actor instance so both writers serialise on
                 // the same `recognition_log.jsonl` file. Fallback only fires in the
                 // test-only PipelineQueue init that intentionally leaves it nil.

@@ -76,6 +76,11 @@ class WatchLoop {
     /// spawning a real subprocess.
     let pidAliveCheck: (pid_t) -> Bool
 
+    /// The calendar event running at a given instant, or nil. Asked once per
+    /// detected meeting in `handleMeeting`; the answer names the recording and
+    /// seeds its participants. Defaults to "no calendar" (see `CalendarController`).
+    let scheduledMeeting: (Date) -> ScheduledMeeting?
+
     /// Suppresses re-prompting after a browser-meeting decline (issue #503).
     /// Internal so the consent gate can live in `WatchLoop+Consent.swift`.
     var consentPolicy: BrowserConsentPolicy
@@ -131,6 +136,7 @@ class WatchLoop {
         pidAliveCheck: @escaping (pid_t) -> Bool = { kill($0, 0) == 0 },
         consentPolicy: BrowserConsentPolicy = BrowserConsentPolicy(),
         denyListStore: any ConsentDenyListStoring = InMemoryConsentDenyListStore(),
+        scheduledMeeting: @escaping (Date) -> ScheduledMeeting? = { _ in nil },
     ) {
         self.detector = detector
         self.recorderFactory = recorderFactory
@@ -149,6 +155,7 @@ class WatchLoop {
         self.pidAliveCheck = pidAliveCheck
         self.consentPolicy = consentPolicy
         self.denyListStore = denyListStore
+        self.scheduledMeeting = scheduledMeeting
     }
 
     nonisolated static var defaultOutputDir: URL {
@@ -357,7 +364,11 @@ class WatchLoop {
     // MARK: - Meeting Handling
 
     func handleMeeting(_ meeting: DetectedMeeting) async throws {
-        let title = Self.cleanTitle(meeting.windowTitle)
+        // The invitation names the meeting better than a window title or the
+        // detector's placeholder, and it is read before recording because the
+        // title is fixed at enqueue (the output basename derives from it).
+        let scheduled = scheduledMeeting(nowProvider())
+        let title = scheduled?.title ?? Self.cleanTitle(meeting.windowTitle)
 
         // --- Recording ---
         update { next in
@@ -384,6 +395,7 @@ class WatchLoop {
             logger.info("Detected \(names.count) participants")
             participants = names
         }
+        participants = Self.mergeParticipants(roster: participants, scheduled: scheduled?.attendees ?? [])
 
         // Wait for meeting to end. If the watch task is cancelled mid-recording
         // — the user clicked Stop Watching, or started a manual recording, both
@@ -410,6 +422,7 @@ class WatchLoop {
             recording: recording,
             trigger: .auto,
             participants: participants,
+            scheduled: scheduled,
         )
     }
 
@@ -454,6 +467,7 @@ class WatchLoop {
         recording: RecordingResult,
         trigger: RecordingSidecar.Trigger,
         participants: [String] = [],
+        scheduled: ScheduledMeeting? = nil,
     ) {
         if recordOnly() {
             do {
@@ -463,6 +477,7 @@ class WatchLoop {
                     recording: recording,
                     trigger: trigger,
                     participants: participants,
+                    scheduled: scheduled,
                 )
             } catch {
                 // Error left redacted: a sidecar/WAV write error embeds the
@@ -493,6 +508,7 @@ class WatchLoop {
             micDelay: recording.micDelay,
             participants: participants,
             meetingStartTime: recording.recordingStartDate,
+            calendarEventID: scheduled?.eventID,
         )
         pipelineQueue?.enqueue(job)
         logger.info("Enqueued pipeline job for: \(title, privacy: .private)")

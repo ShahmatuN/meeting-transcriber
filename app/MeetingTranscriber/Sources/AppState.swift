@@ -150,6 +150,12 @@ final class AppState {
     /// `currentBadge` composes its `health` into the `.error` state.
     let permissions: PermissionsController
 
+    /// Calendar concern: access state, the calendar list, and the "which event
+    /// is happening now" lookup the watch loop names recordings by. Read by
+    /// Settings → General and the RPC snapshot; `WatchingController` holds it
+    /// for the auto-watch loop.
+    let calendar: CalendarController
+
     /// Per-channel + symmetric-silence detection that drives the menu-bar
     /// red-tint indicators while recording. Extracted into its own controller;
     /// `WatchingController` wires its `start()` / `stop()` to `WatchLoop` state
@@ -208,12 +214,21 @@ final class AppState {
         UpdateChecker()
     }
 
+    /// The default calendar source has no calendars behind it. The real entry
+    /// point passes `EventKitCalendarSource()`; every other construction site
+    /// is a test, and an xctest process must never touch EventKit (no usage
+    /// string, and the access prompt would hang the run).
+    private static func makeNullCalendarSource() -> any CalendarEventSource {
+        NullCalendarSource()
+    }
+
     // MARK: - Init
 
     init(
         settings: AppSettings = AppState.makeDefaultSettings(),
         notifier: any AppNotifying = SilentNotifier(),
         updateChecker: UpdateChecker? = nil,
+        calendarSource: (any CalendarEventSource)? = nil,
     ) {
         // Dependency defaults are resolved through explicitly-typed factory
         // helpers (above) rather than inline `?? SomeType()` expressions (and an
@@ -232,6 +247,10 @@ final class AppState {
         let warmupQueue = ModelWarmupQueue()
         self.engines = EngineController(settings: settings, warmupQueue: warmupQueue)
         self.permissions = PermissionsController(notifier: notifier)
+        self.calendar = CalendarController(
+            settings: settings,
+            source: calendarSource ?? Self.makeNullCalendarSource(),
+        )
         self.updateChecker = updateChecker ?? Self.makeUpdateChecker()
         self.pipeline = PipelineController(settings: settings, notifier: notifier)
         self.channelHealth = ChannelHealthController(
@@ -254,6 +273,7 @@ final class AppState {
             channelHealth: channelHealth,
             permissions: permissions,
             liveTranscription: liveTranscription,
+            calendar: calendar,
         )
 
         #if !APPSTORE
