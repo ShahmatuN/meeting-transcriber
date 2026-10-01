@@ -28,7 +28,6 @@ final class WatchingControllerTests: XCTestCase {
     /// default detector never matches a window so no recording starts.
     private func makeController(
         ensureMicAccess: @escaping () async -> Bool = { true },
-        requestScreenRecording: @escaping () -> Void = {},
         requestAccessibility: @escaping () -> Void = {},
         watchTeams: Bool = true,
         startJoinTimeout: Duration = WatchingController.defaultStartJoinTimeout,
@@ -37,33 +36,11 @@ final class WatchingControllerTests: XCTestCase {
         makeWatchingController(
             logDir: tmpDir,
             ensureMicAccess: ensureMicAccess,
-            requestScreenRecording: requestScreenRecording,
             requestAccessibility: requestAccessibility,
             watchTeams: watchTeams,
             startJoinTimeout: startJoinTimeout,
             makeDetector: makeDetector,
         )
-    }
-
-    // MARK: - requestScreenRecording seam
-
-    /// Asking is what registers the app in the Screen Recording list, and until
-    /// it is listed there is no switch for the user to turn on. It belongs at
-    /// watch start, where the window-title lookup that needs it happens — not
-    /// in the health check, which runs on every activation and would re-ask a
-    /// user who is trying to work.
-    func testToggleWatchingRequestsScreenRecording() async {
-        var requested = false
-        // Not trailing-closure: a trailing closure binds to the last param
-        // (`makeDetector`), not `requestScreenRecording`.
-        // swiftlint:disable:next trailing_closure
-        let controller = makeController(requestScreenRecording: { requested = true })
-        addTeardownBlock { await controller.watchLoop?.stop() }
-
-        controller.toggleWatching()
-        await waitFor(requested)
-
-        XCTAssertTrue(requested, "toggleWatching must ask for Screen Recording")
     }
 
     // MARK: - requestAccessibility seam
@@ -295,21 +272,18 @@ final class WatchingControllerTests: XCTestCase {
     func testStartRefusedByAMidFlightManualStartReportsBlocked() async {
         let micGate = AsyncGate()
         let box = ControllerBox()
-        let controller = makeController(
-            ensureMicAccess: {
-                await micGate.wait()
-                return true
-            },
-            // Fires inside the auto start task after the mic gate and before
-            // the bail guard. Registering the manual start from there orders
-            // the race instead of betting on it: the entry guard of
-            // `startWatching` has provably already run.
-            requestScreenRecording: {
-                MainActor.assumeIsolated {
-                    box.controller?.startManualRecording(pid: 99, appName: "Chrome", title: "Meeting")
-                }
-            },
-        )
+        // Fires inside the auto start task: parked on the gate, then, before
+        // returning into the task and so before its bail guard, registers the
+        // manual start. That orders the race instead of betting on it: the
+        // entry guard of `startWatching` has provably already run.
+        // swiftlint:disable:next trailing_closure
+        let controller = makeController(ensureMicAccess: {
+            await micGate.wait()
+            await MainActor.run {
+                box.controller?.startManualRecording(pid: 99, appName: "Chrome", title: "Meeting")
+            }
+            return true
+        })
         box.controller = controller
         addTeardownBlock {
             await micGate.open()

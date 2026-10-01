@@ -15,11 +15,12 @@ enum Permissions {
     static let axPromptKey: String =
         kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String
 
-    /// Check if Screen Recording permission is granted.
+    /// Check if Screen Recording permission is granted. Optional: the grant
+    /// only improves meeting titles, so a missing one is informational.
     static func checkScreenRecording() -> Bool {
         let granted = PermissionHealthCheck.checkScreenRecordingLive() == .healthy
         if !granted {
-            logger.warning("permission_denied resource=screen_recording — required for meeting detection")
+            logger.info("permission_missing resource=screen_recording optional=true — meeting titles fall back to a placeholder")
         }
         return granted
     }
@@ -51,7 +52,13 @@ enum Permissions {
     ///
     /// The already-granted check comes first so a session that starts granted
     /// does not burn the one-shot flag: if the grant is revoked mid-session, the
-    /// next watch start still asks.
+    /// next press still asks.
+    ///
+    /// Reached only from the "Request Access…" button in Settings → Advanced.
+    /// It used to fire at every watch start, which raised a system dialog for
+    /// an optional grant on every launch of an auto-watching install; the
+    /// grant only improves meeting titles, so the ask belongs where the user
+    /// has just read that.
     static func ensureScreenRecordingAccess() {
         guard !CGPreflightScreenCaptureAccess() else { return }
         guard claimFirst(screenRecordingPromptLock) else { return }

@@ -56,22 +56,6 @@ final class WatchingController {
     /// surfaces a permission problem through its own `permissionChecker`).
     private let ensureMicAccess: () async -> Bool
 
-    /// Screen-Recording request, fired at watch start. Injectable so tests skip
-    /// the real TCC prompt.
-    ///
-    /// Asking is what registers the app in the Screen Recording list at all —
-    /// preflighting never does — and until it is listed there is nothing for
-    /// the user to switch on. It sits here, next to the microphone gate, rather
-    /// than in the health check: that runs on every activation, so the request
-    /// would keep arriving while the user is trying to work, and a checker
-    /// causing a system prompt is a side effect nothing can inject around.
-    ///
-    /// The result is ignored, like the microphone gate: the permission only
-    /// improves the detected meeting's title (`PowerAssertionDetector` falls
-    /// back to a placeholder), so watching proceeds either way and the health
-    /// check reports the state.
-    private let requestScreenRecording: () -> Void
-
     /// Accessibility request, fired at watch start. Injectable so tests skip
     /// the real TCC prompt.
     ///
@@ -129,7 +113,6 @@ final class WatchingController {
         permissions: PermissionsController,
         liveTranscription: LiveTranscriptionCoordinator,
         ensureMicAccess: @escaping () async -> Bool = { await Permissions.ensureMicrophoneAccess() },
-        requestScreenRecording: @escaping () -> Void = { Permissions.ensureScreenRecordingAccess() },
         requestAccessibility: @escaping () -> Void = {
             #if !APPSTORE
                 Permissions.ensureAccessibilityAccess()
@@ -146,7 +129,6 @@ final class WatchingController {
         self.permissions = permissions
         self.liveTranscription = liveTranscription
         self.ensureMicAccess = ensureMicAccess
-        self.requestScreenRecording = requestScreenRecording
         self.requestAccessibility = requestAccessibility
         self.startJoinTimeout = startJoinTimeout
         self.makeRecorder = makeRecorder
@@ -267,14 +249,22 @@ final class WatchingController {
 
     /// The permissions a watch start asks for, in the order the user meets
     /// them. Only the mic gate is awaited, because capture cannot begin without
-    /// it; the other two register the app in their System Settings pane and are
+    /// it; Accessibility registers the app in its System Settings pane and is
     /// reported by `PermissionHealthCheck` afterwards, so a refusal delays
     /// nothing here.
+    ///
+    /// Screen Recording is deliberately not asked for. It only improves the
+    /// detected meeting's title (`PowerAssertionDetector` falls back to a
+    /// placeholder), the audio tap runs on the separate Audio Recording grant,
+    /// and a system dialog at every watch start for an optional grant trained
+    /// users to either grant a permission they did not need or dismiss a
+    /// dialog they would later meet again for the microphone. The one-shot
+    /// request lives behind the "Request Access…" button on the Settings row,
+    /// where the user has just read what it buys.
     ///
     /// - Parameter userInitiated: see `toggleWatching`.
     private func requestStartPermissions(userInitiated: Bool) async {
         _ = await ensureMicAccess()
-        requestScreenRecording()
         if userInitiated, settings.watchTeams {
             requestAccessibility()
         }
