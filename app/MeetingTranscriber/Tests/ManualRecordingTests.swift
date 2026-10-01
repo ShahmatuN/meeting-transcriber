@@ -240,6 +240,20 @@ final class ManualRecordingTests: XCTestCase {
         XCTAssertEqual(loop.state, .recording)
     }
 
+    func testAppRecordingStartsWithoutTheScreenRecordingGrant() async throws {
+        // The configuration this app recommends: Audio Recording granted for the
+        // tap, Screen Recording withheld. "Record App..." used to be refused
+        // here on a grant that only ever stood in for the tap.
+        let (loop, mock) = makeLoop()
+        loop.permissionChecker = { HealthCheckResult(screenRecording: .denied, microphone: .healthy) }
+
+        try await loop.startManualRecording(pid: 1234, appName: "Chrome", title: "Meeting")
+        defer { loop.stop() }
+
+        XCTAssertTrue(mock.startCalled)
+        XCTAssertEqual(loop.state, .recording)
+    }
+
     func testSecondMicrophoneRecordingWhileRecordingIsNoOp() async throws {
         let (loop, _) = makeLoop()
         try await loop.startManualRecording(pid: 1234, appName: "Chrome", title: "Meeting")

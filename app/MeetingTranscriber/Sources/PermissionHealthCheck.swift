@@ -16,9 +16,12 @@ enum PermissionStatus: Equatable {
     case notDetermined
 }
 
+/// A permission in a state the menu-bar badge and the permission notification
+/// report. Screen Recording has no case here on purpose: since the audio tap
+/// runs on the separate "Audio Recording" grant it only improves meeting titles,
+/// and a missing optional grant is not a problem to badge. Its status is still
+/// probed and carried on `HealthCheckResult.screenRecording` for `/state`.
 enum PermissionProblem: Equatable {
-    case screenRecordingDenied
-    case screenRecordingBroken
     case microphoneDenied
     case microphoneBroken
     case accessibilityDenied
@@ -26,7 +29,6 @@ enum PermissionProblem: Equatable {
 
     var permissionName: String {
         switch self {
-        case .screenRecordingDenied, .screenRecordingBroken: "Screen Recording"
         case .microphoneDenied, .microphoneBroken: "Microphone"
         case .accessibilityDenied, .accessibilityBroken: "Accessibility"
         }
@@ -34,8 +36,8 @@ enum PermissionProblem: Equatable {
 
     var isBroken: Bool {
         switch self {
-        case .screenRecordingBroken, .microphoneBroken, .accessibilityBroken: true
-        case .screenRecordingDenied, .microphoneDenied, .accessibilityDenied: false
+        case .microphoneBroken, .accessibilityBroken: true
+        case .microphoneDenied, .accessibilityDenied: false
         }
     }
 
@@ -46,10 +48,9 @@ enum PermissionProblem: Equatable {
     }
 
     /// Compact, PII-free token for `os_log` (safe to log with `privacy: .public`):
-    /// e.g. `screen-recording=broken`. The clear-text `description` is user-facing only.
+    /// e.g. `microphone=broken`. The clear-text `description` is user-facing only.
     var logToken: String {
         let key = switch self {
-        case .screenRecordingDenied, .screenRecordingBroken: "screen-recording"
         case .microphoneDenied, .microphoneBroken: "microphone"
         case .accessibilityDenied, .accessibilityBroken: "accessibility"
         }
@@ -60,8 +61,7 @@ enum PermissionProblem: Equatable {
     /// only degrading a side feature. The rule is one sentence: a grant blocks
     /// exactly the recordings that open the channel it gates. An app-only
     /// recording opens no mic file at all (`DualSourceRecorder.start`), so the
-    /// microphone grant it never asks for cannot block it; a microphone-only
-    /// recording opens no process tap, so Screen Recording cannot block it.
+    /// microphone grant it never asks for cannot block it.
     ///
     /// Accessibility never blocks: its only consumer is `ParticipantReader` (Teams
     /// participant names, read in `handleMeeting`), which a recording does not need.
@@ -72,22 +72,19 @@ enum PermissionProblem: Equatable {
     /// Accessibility. Nothing links the row to this switch either, so flipping one
     /// leaves them disagreeing with no compile error and no failing test.
     ///
-    /// Screen Recording keeps blocking every recording that taps a process, even
-    /// though it is only *one* of two sufficient grants for the app-audio tap, the
-    /// other being the `NSAudioCaptureUsageDescription` "Audio Recording" grant.
-    /// That one has no preflight API and is not modelled here, so a denied Screen
-    /// Recording cannot be told apart from a tap that will silently capture
-    /// nothing. Someone who clicked "Record App..." is sitting in front of the
-    /// machine and can act on a refusal, so the interactive path errs towards
-    /// refusing, trading an over-block (Audio Recording granted, Screen Recording
-    /// denied) for never handing back a silent file. The auto-detected path does
-    /// not weigh this differently, it does not weigh it at all: `handleMeeting`
-    /// starts the recorder with no permission check of any kind.
-    ///
-    /// That trade only makes sense while a tap is involved. A microphone-only
-    /// recording (issue #633) has no tap to be silently starved, so extending the
-    /// over-block to it would refuse the one capture path that works without the
-    /// grant, on exactly the machines where the grant is missing.
+    /// Nothing blocks a recording for the app-audio tap, and that is a gap, not
+    /// an oversight. The tap runs on the `NSAudioCaptureUsageDescription` "Audio
+    /// Recording" grant, which has no preflight API: macOS asks at the first tap
+    /// creation and a denied tap returns `noErr` and delivers zeroes (issue #524).
+    /// Screen Recording used to stand in for it here, blocking every recording
+    /// that taps a process, because it is the other grant the tap accepts and the
+    /// only one that can be read in advance. That over-blocked exactly the
+    /// configuration this app recommends, Audio Recording granted and Screen
+    /// Recording withheld, so the proxy is gone: Screen Recording now only
+    /// improves meeting titles and has no `PermissionProblem` case at all. The
+    /// denied-tap signature is reported at runtime instead, by
+    /// `ChannelFaultMonitor` as a `digitalSilence` fault on a channel that never
+    /// carried signal, whose message names the Audio Recording pane.
     ///
     /// The switch is exhaustive on purpose, but it guards less than it looks like.
     /// Once a permission has `PermissionProblem` cases, every classification over
@@ -98,7 +95,6 @@ enum PermissionProblem: Equatable {
     /// too, and nothing but this sentence says so.
     func blocksRecording(for source: RecordingSource) -> Bool {
         switch self {
-        case .screenRecordingDenied, .screenRecordingBroken: source.capturesAppAudio
         case .microphoneDenied, .microphoneBroken: source.capturesMicrophone
         case .accessibilityDenied, .accessibilityBroken: false
         }
@@ -106,6 +102,7 @@ enum PermissionProblem: Equatable {
 }
 
 struct HealthCheckResult: Equatable {
+    /// Reported, never a problem: see `PermissionProblem`.
     let screenRecording: PermissionStatus
     let microphone: PermissionStatus
     let accessibility: PermissionStatus
@@ -122,11 +119,6 @@ struct HealthCheckResult: Equatable {
 
     var problems: [PermissionProblem] {
         var result: [PermissionProblem] = []
-        switch screenRecording {
-        case .denied: result.append(.screenRecordingDenied)
-        case .broken: result.append(.screenRecordingBroken)
-        default: break
-        }
         switch microphone {
         case .denied: result.append(.microphoneDenied)
         case .broken: result.append(.microphoneBroken)
@@ -183,6 +175,8 @@ enum PermissionHealthCheck {
     // MARK: - Screen Recording (pure, testable)
 
     /// Pure decision function for Screen Recording: trusts the TCC system verdict.
+    /// The result is reported on `/state` and in Settings only; it feeds no
+    /// `PermissionProblem`, because the grant is optional (meeting titles).
     ///
     /// - `systemAllowed`: whether macOS says the process has the Screen Recording
     ///   entitlement (via `CGPreflightScreenCaptureAccess()` or equivalent).

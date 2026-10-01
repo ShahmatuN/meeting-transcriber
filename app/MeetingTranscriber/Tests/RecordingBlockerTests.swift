@@ -33,14 +33,19 @@ final class RecordingBlockerTests: XCTestCase {
         }
     }
 
-    func testScreenRecordingProblemsBlockRecording() {
-        for (status, problem) in [
-            (PermissionStatus.denied, PermissionProblem.screenRecordingDenied),
-            (.broken, .screenRecordingBroken),
-        ] {
+    func testDeniedScreenRecordingIsNotAProblemAndBlocksNothing() {
+        // Screen Recording only improves meeting titles. The app-audio tap runs
+        // on the separate Audio Recording grant, which cannot be preflighted, so
+        // the proxy block this grant used to carry over-refused exactly the
+        // recommended configuration (Audio Recording granted, Screen Recording
+        // withheld). Neither the badge nor the gate may mention it now.
+        for status in [PermissionStatus.denied, .broken] {
             let result = PermissionHealthCheck.overallHealth(screenRecording: status, microphone: .healthy)
-            XCTAssertEqual(result.recordingBlockers(for: .appAndMic(pid: 1)), [problem])
-            XCTAssertNotNil(result.recordingRefusalReason(for: .appAndMic(pid: 1)))
+            XCTAssertTrue(result.isHealthy, "screen recording \(status) is not a reported problem")
+            XCTAssertEqual(result.problems, [])
+            for source in [RecordingSource.appAndMic(pid: 1), .appOnly(pid: 1), .micOnly] {
+                XCTAssertNil(result.recordingRefusalReason(for: source), "\(status)/\(source)")
+            }
         }
     }
 
@@ -49,11 +54,6 @@ final class RecordingBlockerTests: XCTestCase {
         XCTAssertNotNil(result.recordingRefusalReason(for: .appAndMic(pid: 1)))
         // A no-mic recording captures app audio only, so it never asks for the grant.
         XCTAssertNil(result.recordingRefusalReason(for: .appOnly(pid: 1)))
-    }
-
-    func testScreenRecordingProblemStillBlocksAMicLessRecording() {
-        let result = PermissionHealthCheck.overallHealth(screenRecording: .denied, microphone: .healthy)
-        XCTAssertNotNil(result.recordingRefusalReason(for: .appOnly(pid: 1)))
     }
 
     func testRefusalReasonNamesOnlyBlockingProblems() throws {
@@ -70,14 +70,14 @@ final class RecordingBlockerTests: XCTestCase {
         XCTAssertTrue(result.notificationBody.contains("Accessibility"))
     }
 
-    func testRefusalReasonNamesEveryBlockingProblem() throws {
+    func testRefusalReasonNeverNamesScreenRecording() throws {
+        // A refusal used to name both grants. With the Screen Recording proxy
+        // gone, a user who reads the refusal must not be sent to a pane that has
+        // nothing to do with why the recording was refused.
         let result = PermissionHealthCheck.overallHealth(screenRecording: .denied, microphone: .denied)
-        XCTAssertEqual(result.recordingBlockers(for: .appAndMic(pid: 1)).count, 2)
-        // Without this, naming only the first blocker passes every other test, and a
-        // user who fixes the one permission the message named is refused a second
-        // time over one that was equally blocking and equally known the first time.
+        XCTAssertEqual(result.recordingBlockers(for: .appAndMic(pid: 1)), [.microphoneDenied])
         let reason = try XCTUnwrap(result.recordingRefusalReason(for: .appAndMic(pid: 1)))
-        XCTAssertTrue(reason.contains("Screen Recording"))
+        XCTAssertFalse(reason.contains("Screen Recording"))
         XCTAssertTrue(reason.contains("Microphone"))
     }
 
@@ -98,14 +98,6 @@ final class RecordingBlockerTests: XCTestCase {
         let appOnly = RecordingSource.appOnly(pid: 1)
         let micOnly = RecordingSource.micOnly
 
-        // Screen Recording gates the process tap, so it blocks exactly the
-        // sources that open one.
-        for problem in [PermissionProblem.screenRecordingDenied, .screenRecordingBroken] {
-            XCTAssertTrue(problem.blocksRecording(for: app))
-            XCTAssertTrue(problem.blocksRecording(for: appOnly))
-            XCTAssertFalse(problem.blocksRecording(for: micOnly), "no tap is opened, so the tap's proxy grant is irrelevant")
-        }
-
         // The microphone grant blocks exactly the sources that record a mic.
         for problem in [PermissionProblem.microphoneDenied, .microphoneBroken] {
             XCTAssertTrue(problem.blocksRecording(for: app))
@@ -122,15 +114,12 @@ final class RecordingBlockerTests: XCTestCase {
     }
 
     func testDeniedScreenRecordingDoesNotBlockAMicrophoneOnlyRecording() {
-        // The behaviour issue #633 turns on. Screen Recording is only a
-        // preflightable proxy for the app-audio tap; a recording that opens no
-        // tap has nothing to preflight, and refusing it would leave the one
-        // capture path that needs no tap unusable on exactly the machines that
-        // withhold the grant.
+        // The behaviour issue #633 turned on, kept as a regression pin now that
+        // the grant blocks nothing at all: a recording that opens no tap has
+        // never had anything for this grant to stand in for.
         let result = PermissionHealthCheck.overallHealth(screenRecording: .denied, microphone: .healthy)
 
         XCTAssertNil(result.recordingRefusalReason(for: .micOnly))
-        XCTAssertNotNil(result.recordingRefusalReason(for: .appAndMic(pid: 1)), "the app path still refuses")
     }
 
     func testDeniedMicrophoneBlocksAMicrophoneOnlyRecording() {

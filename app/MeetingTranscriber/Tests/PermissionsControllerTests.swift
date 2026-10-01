@@ -17,9 +17,19 @@ final class PermissionsControllerTests: XCTestCase {
     func testHandleBrokenSendsNotification() {
         let notifier = RecordingNotifier()
         let controller = PermissionsController(notifier: notifier)
-        controller.handle(HealthCheckResult(screenRecording: .broken, microphone: .healthy))
+        controller.handle(HealthCheckResult(screenRecording: .healthy, microphone: .broken))
         XCTAssertEqual(notifier.calls.count, 1)
         XCTAssertTrue(notifier.calls.first?.title.contains("Permission") ?? false)
+    }
+
+    func testHandleScreenRecordingDeniedIsNotNotified() {
+        // Optional grant (titles only): no badge, no notification.
+        let notifier = RecordingNotifier()
+        let controller = PermissionsController(notifier: notifier)
+        controller.handle(HealthCheckResult(screenRecording: .denied, microphone: .healthy))
+        controller.handle(HealthCheckResult(screenRecording: .broken, microphone: .healthy))
+        XCTAssertTrue(notifier.calls.isEmpty)
+        XCTAssertEqual(controller.health?.isHealthy, true)
     }
 
     func testHandleHealthyNoNotification() {
@@ -61,7 +71,7 @@ final class PermissionsControllerTests: XCTestCase {
         let notifier = RecordingNotifier()
         let controller = PermissionsController(notifier: notifier)
         controller.handle(HealthCheckResult(screenRecording: .healthy, microphone: .broken))
-        controller.handle(HealthCheckResult(screenRecording: .broken, microphone: .healthy))
+        controller.handle(HealthCheckResult(screenRecording: .healthy, microphone: .healthy, accessibility: .broken))
         XCTAssertEqual(notifier.calls.count, 2, "Different problem sets should each trigger a notification")
     }
 

@@ -40,6 +40,22 @@
             XCTAssertFalse(unknown.isHealthy)
         }
 
+        // MARK: - Screen Recording is reported, not judged
+
+        /// The status still travels on `/state` so a driver can see what the
+        /// machine has granted, but a withheld grant leaves the aggregate
+        /// healthy: the grant only improves meeting titles, and
+        /// `scripts/e2e-permission-health.sh` asserts on exactly this pair.
+        @MainActor
+        func testDeniedScreenRecordingIsReportedWithAHealthyAggregate() {
+            let state = makeRPCTestState()
+            state.permissions.handle(HealthCheckResult(screenRecording: .denied, microphone: .healthy))
+
+            let health = state.rpcStateSnapshot().permissionHealth
+            XCTAssertEqual(health.screenRecording, "denied")
+            XCTAssertTrue(health.isHealthy)
+        }
+
         // MARK: - Serialisation
 
         func testPermissionHealthSerialisesIntoSnapshotJSON() throws {

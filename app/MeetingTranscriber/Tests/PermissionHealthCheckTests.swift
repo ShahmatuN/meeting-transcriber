@@ -129,10 +129,13 @@ final class PermissionHealthCheckTests: XCTestCase {
         XCTAssertTrue(result.problems.isEmpty)
     }
 
-    func testOverallScreenBroken() {
+    func testOverallScreenBrokenIsStillHealthy() {
+        // The grant is optional (meeting titles only): reported on the result,
+        // never a problem for the badge or the notification.
         let result = PermissionHealthCheck.overallHealth(screenRecording: .broken, microphone: .healthy)
-        XCTAssertFalse(result.isHealthy)
-        XCTAssertEqual(result.problems, [.screenRecordingBroken])
+        XCTAssertTrue(result.isHealthy)
+        XCTAssertEqual(result.problems, [])
+        XCTAssertEqual(result.screenRecording, .broken, "the status itself is still carried")
     }
 
     func testOverallMicBroken() {
@@ -167,8 +170,7 @@ final class PermissionHealthCheckTests: XCTestCase {
             accessibility: .broken,
         )
         XCTAssertFalse(result.isHealthy)
-        XCTAssertEqual(result.problems.count, 3)
-        XCTAssertTrue(result.problems.contains(.screenRecordingBroken))
+        XCTAssertEqual(result.problems.count, 2, "screen recording contributes no problem")
         XCTAssertTrue(result.problems.contains(.microphoneBroken))
         XCTAssertTrue(result.problems.contains(.accessibilityBroken))
     }
@@ -187,9 +189,11 @@ final class PermissionHealthCheckTests: XCTestCase {
         XCTAssertTrue(result.isHealthy)
     }
 
-    func testOverallScreenDenied() {
+    func testOverallScreenDeniedIsStillHealthy() {
         let result = PermissionHealthCheck.overallHealth(screenRecording: .denied, microphone: .healthy)
-        XCTAssertEqual(result.problems, [.screenRecordingDenied])
+        XCTAssertEqual(result.problems, [])
+        XCTAssertTrue(result.isHealthy)
+        XCTAssertEqual(result.screenRecording, .denied)
     }
 
     func testOverallMicDenied() {
@@ -199,13 +203,14 @@ final class PermissionHealthCheckTests: XCTestCase {
 
     // MARK: - Notification Message
 
-    func testBrokenScreenRecordingMessageDistinguishesFromDenied() {
+    func testScreenRecordingNeverReachesTheNotificationBody() {
+        // The notification used to send users to the Screen Recording pane for
+        // a grant the app can do without; the body must not name it any more.
         let broken = PermissionHealthCheck.overallHealth(screenRecording: .broken, microphone: .healthy)
         let denied = PermissionHealthCheck.overallHealth(screenRecording: .denied, microphone: .healthy)
-        XCTAssertTrue(broken.notificationBody.contains("Screen Recording"))
-        XCTAssertTrue(broken.notificationBody.contains("toggle"))
-        XCTAssertTrue(denied.notificationBody.contains("denied"))
-        XCTAssertNotEqual(broken.notificationBody, denied.notificationBody)
+        XCTAssertEqual(broken.notificationBody, "")
+        XCTAssertEqual(denied.notificationBody, "")
+        XCTAssertEqual(broken.logSummary, "")
     }
 
     func testBrokenMicMessageDistinguishesFromDenied() {
