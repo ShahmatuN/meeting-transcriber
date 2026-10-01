@@ -109,4 +109,19 @@ final class CalendarController {
         }
         return match
     }
+
+    /// What is left of today, for the Meetings window's "Coming up" card.
+    /// Empty when the integration is off or access is missing, the same gate
+    /// as `scheduledMeeting(at:)`. Reads the store once per call; the window
+    /// calls it on open and once a minute while it is open.
+    func upcomingMeetings(now: Date) -> [UpcomingMeeting] {
+        guard settings.calendarIntegrationEnabled, source.authorization == .fullAccess else {
+            return []
+        }
+        let horizonEnd = UpcomingMeetings.horizonEnd(now: now)
+        let events = source.events(between: now.addingTimeInterval(-Self.queryHalfWidth), and: horizonEnd)
+        return UpcomingMeetings.select(
+            events: events, now: now, horizonEnd: horizonEnd, selectedCalendarIDs: settings.calendarIDs,
+        )
+    }
 }
