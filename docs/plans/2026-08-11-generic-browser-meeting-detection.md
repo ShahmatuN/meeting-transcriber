@@ -222,7 +222,19 @@ and an undecided app prompt identically, Record's promotion changes no
 future behaviour, and the pre-seed is a no-op; the confirmed state carried
 bookkeeping and nothing else. It is dropped. If a per-app auto-record
 setting is ever wanted, a positive state returns then, with actual
-behaviour attached. What remains:
+behaviour attached.
+
+> **Update (2026-10):** that positive state now exists, scoped rather than
+> per app: `AppSettings.autoRecordGoogleMeet` (`BrowserAutoRecordPolicy`,
+> `WatchLoop+AutoRecord`) records a Chrome call without the prompt when a
+> running calendar event carries a `meet.google.com` link or Chrome has a
+> `meet.google.com/<code>` tab open. Off by default, Chrome only, keyed on a
+> Meet signal rather than on the app, so the false positive named above (a
+> Meet page you cannot join) is narrowed to the lobby of a real call, which
+> the end-grace logic ends. The deny list still wins: the detector drops a
+> denied identity before the policy is asked. Everything below is unchanged.
+
+What remains:
 
 - **denied**: never prompt for this app again, never record it, until the
   user reverts the decision in Settings. This is the only remembered state
