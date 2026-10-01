@@ -77,7 +77,7 @@
                 }
                 // `next()` yields the child's `String?` wrapped once more;
                 // flatten rather than `?? nil`, which the linter rejects.
-                let first = await group.next().flatMap { $0 }
+                let first = await group.next().flatMap(\.self)
                 group.cancelAll()
                 return first
             }
