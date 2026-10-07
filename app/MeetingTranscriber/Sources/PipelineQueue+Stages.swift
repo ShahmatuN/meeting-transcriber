@@ -585,7 +585,7 @@ extension PipelineQueue {
                     diarization: currentDiarization,
                     job: (jobID: ctx.jobID, title: ctx.title, slug: ctx.slug, participants: ctx.participants),
                     diarizeProcess: diarizeProcess, isDualSource: transcription.isDualSource,
-                    outputDir: outputDir,
+                    outputDir: outputDir, pinnedNames: run.pinnedNames,
                 )
             }
 
@@ -674,6 +674,14 @@ extension PipelineQueue {
     /// there was nothing to diarize. Nil means no verdict was taken (a late
     /// re-run on a job from before this existed) and every track is offered,
     /// as it was.
+    ///
+    /// A named microphone (`micLabel` non-empty) is one person by
+    /// declaration, so its diarization is collapsed to a single speaker and
+    /// that speaker is pinned to the name on the returned run; an empty
+    /// `micLabel` keeps the mic track diarized as a room with several people
+    /// in it. The collapse happens here, on the only path both the batch
+    /// stage and the late re-run take, so a "Wrong count?" re-run cannot
+    /// split the user back into `M_SPEAKER_0..3`.
     func runDualTrackDiarization(
         diarizeProcess: any DiarizationProvider,
         tracks: (app: URL, mic: URL, micDelay: TimeInterval, viability: DualTrackViability?),
@@ -705,7 +713,8 @@ extension PipelineQueue {
                 // Shift the mic diarization onto the app/canonical timeline so it
                 // aligns with the mic transcript segments, which
                 // `mergeDualSourceSegments` already shifted by `+micDelay`.
-                micDiarization = DiarizationProcess.shiftSegments(rawMic, by: tracks.micDelay)
+                let shifted = DiarizationProcess.shiftSegments(rawMic, by: tracks.micDelay)
+                micDiarization = micLabel.isEmpty ? shifted : DiarizationProcess.collapseToSingleSpeaker(shifted)
             } catch {
                 micError = error
             }
@@ -749,7 +758,22 @@ extension PipelineQueue {
             )
             throw appError ?? micError ?? DiarizationError.notAvailable
         }
-        return DiarizationRun(app: appDiarization, mic: micDiarization, combined: combined)
+        return DiarizationRun(
+            app: appDiarization, mic: micDiarization, combined: combined,
+            pinnedNames: pinnedMicName(mic: micDiarization, merged: appDiarization != nil),
+        )
+    }
+
+    /// The one pinned name a dual-track run carries: the collapsed microphone
+    /// speaker mapped to `micLabel`, keyed the way `combined` keys it. In the
+    /// merged topology that is the `M_`-prefixed id; when the app track failed
+    /// and `combined` is the bare mic diarization, the raw id. Nothing is
+    /// pinned for an unnamed microphone, a mic track that was not diarized,
+    /// or a collapse that found no speaker.
+    private func pinnedMicName(mic: DiarizationResult?, merged: Bool) -> [String: String] {
+        guard !micLabel.isEmpty, let mic, let id = DiarizationProcess.dominantSpeaker(of: mic) else { return [:] }
+        let key = merged ? SpeakerKey(track: .mic, id: id).encoded : id
+        return [key: micLabel]
     }
 
     /// Apply speaker names to the transcript for whichever topology the run

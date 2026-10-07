@@ -53,20 +53,8 @@ struct SpeakersSettingsView: View {
                 .recordOnlyDisabled(settings.recordOnly)
 
             if !settings.noMic {
-                Section("Speaker Identity") {
-                    HStack {
-                        Text("Mic Speaker Name")
-                        Spacer()
-                        TextField("Me", text: $settings.micName)
-                            .frame(width: 160)
-                            .multilineTextAlignment(.trailing)
-                            .accessibilityIdentifier(A11yID.micNameField)
-                    }
-                    Text("Your name for dual-source mode. Leave empty to diarize mic track (multi-person room).")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                .recordOnlyDisabled(settings.recordOnly)
+                speakerIdentitySection
+                    .recordOnlyDisabled(settings.recordOnly)
             }
 
             Section("Known Voices") {
@@ -91,6 +79,27 @@ struct SpeakersSettingsView: View {
                 pipelineBusy: pipelineBusy,
                 onMutate: onSpeakerMutate,
             )
+        }
+    }
+
+    // MARK: - Speaker Identity Section
+
+    private var speakerIdentitySection: some View {
+        Section("Speaker Identity") {
+            HStack {
+                Text("Mic Speaker Name")
+                Spacer()
+                TextField("Me", text: $settings.micName)
+                    .frame(width: 160)
+                    .multilineTextAlignment(.trailing)
+                    .accessibilityIdentifier(A11yID.micNameField)
+            }
+            Text(
+                "Your name for dual-source mode: everything on the microphone track is attributed to it as one speaker. "
+                    + "Leave empty to diarize the mic track (several people in the room).",
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
         }
     }
 

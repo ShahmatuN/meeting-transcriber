@@ -2398,7 +2398,9 @@ final class PipelineQueueTests: XCTestCase {
             embeddings: nil,
         )
         let protocolGen = MockProtocolGen()
-        let q = makeCapturingQueue(engine: engine, diar: diar, protocolGen: protocolGen)
+        // An unnamed microphone (`micName` empty) is a room with several people
+        // in it, so the mic track is diarized like the app track.
+        let q = makeCapturingQueue(engine: engine, diar: diar, protocolGen: protocolGen, micLabel: "")
 
         try q.enqueue(makeDualSourceJob(title: "Dual"))
         await q.processNext()
@@ -2407,9 +2409,62 @@ final class PipelineQueueTests: XCTestCase {
         // Both tracks' segments are assigned via their (R_/M_-unprefixed) diarization → Alice.
         XCTAssertTrue(transcript.contains("Alice:"), "dual-track: speakers should be named — got: \(transcript)")
         XCTAssertFalse(transcript.contains("Remote:"), "dual-track: raw 'Remote' app label should be replaced")
-        XCTAssertFalse(
-            transcript.contains("] Me:"),
-            "dual-track: raw 'Me' mic label should be replaced when mic diarization succeeds — got: \(transcript)",
+        // Both tracks' words are present (the two same-speaker utterances may
+        // be merged into one line) and every line carrying them is Alice's.
+        XCTAssertEqual(transcript.components(separatedBy: "Hello").count - 1, 2, "one utterance per track — got: \(transcript)")
+        let lines = transcript.split(separator: "\n").filter { $0.contains("Hello") }
+        XCTAssertFalse(lines.isEmpty)
+        XCTAssertTrue(
+            lines.allSatisfy { $0.contains("] Alice:") },
+            "dual-track with an unnamed mic: the mic utterance is diarized too — got: \(transcript)",
+        )
+    }
+
+    /// A named microphone (`AppSettings.micName`, default "Me") is one person
+    /// by declaration. The mic track is still diarized, but everything on it
+    /// is attributed to that name, however many clusters the diarizer found;
+    /// the app track keeps its own per-speaker names. Before this the mic
+    /// track surfaced `M_SPEAKER_0..3` in a 1-1 and the naming dialog offered
+    /// a colleague's voice for the user's own microphone.
+    func testDiarizeDualTrackNamedMicIsOneSpeakerWhateverTheDiarizerFound() async throws {
+        let engine = MockEngine()
+        engine.segmentsByPathSuffix = [
+            "app_16k.wav": [TimestampedSegment(start: 5, end: 10, text: "APPWORD")],
+            "mic_16k.wav": [
+                TimestampedSegment(start: 0, end: 5, text: "MICONE"),
+                TimestampedSegment(start: 5, end: 10, text: "MICTWO"),
+            ],
+        ]
+        let diar = MockDiarization()
+        // The same two-cluster answer for both tracks: on the app track it is
+        // two remote speakers, on the mic track it is the diarizer splitting
+        // one person (or hearing the far end bleed in).
+        diar.resultToReturn = DiarizationResult(
+            segments: [
+                .init(start: 0, end: 5, speaker: "SPEAKER_0"),
+                .init(start: 5, end: 10, speaker: "SPEAKER_1"),
+            ],
+            speakingTimes: ["SPEAKER_0": 5, "SPEAKER_1": 5],
+            autoNames: ["SPEAKER_0": "Alice", "SPEAKER_1": "Carol"],
+            embeddings: nil,
+        )
+        let protocolGen = MockProtocolGen()
+        let q = makeCapturingQueue(engine: engine, diar: diar, protocolGen: protocolGen, micLabel: "Me")
+
+        try q.enqueue(makeDualSourceJob(title: "Named Mic"))
+        await q.processNext()
+
+        let transcript = try XCTUnwrap(protocolGen.capturedTranscript)
+        let micLines = transcript.split(separator: "\n").filter { $0.contains("MIC") }
+        XCTAssertFalse(micLines.isEmpty, "mic words must reach the transcript — got: \(transcript)")
+        XCTAssertTrue(
+            micLines.allSatisfy { $0.contains("] Me:") },
+            "every mic utterance is the named mic speaker — got: \(transcript)",
+        )
+        XCTAssertFalse(transcript.contains("M_SPEAKER"), "no raw mic cluster ids — got: \(transcript)")
+        XCTAssertTrue(
+            transcript.contains("] Carol: APPWORD"),
+            "the app track keeps its own diarized names — got: \(transcript)",
         )
     }
 
@@ -2476,7 +2531,9 @@ final class PipelineQueueTests: XCTestCase {
             embeddings: nil,
         )
         let protocolGen = MockProtocolGen()
-        let q = makeCapturingQueue(engine: engine, diar: diar, protocolGen: protocolGen)
+        // Unnamed microphone: the mic track is diarized (see the named-mic
+        // sibling below for the other half of this fallback).
+        let q = makeCapturingQueue(engine: engine, diar: diar, protocolGen: protocolGen, micLabel: "")
 
         try q.enqueue(makeDualSourceJob(title: "Dual AppFail"))
         await q.processNext()
@@ -2504,13 +2561,36 @@ final class PipelineQueueTests: XCTestCase {
             "mic-only fallback: app segments keep their raw 'Remote' tag; got: \(transcript)",
         )
         XCTAssertFalse(
-            transcript.contains("] Me:"),
-            "mic-only fallback: mic segments must be diarized, not keep the raw mic label; got: \(transcript)",
-        )
-        XCTAssertFalse(
             transcript.contains("SPEAKER_0:"),
             "mic-only fallback: mic segments must not surface the raw diarizer ID; got: \(transcript)",
         )
+    }
+
+    /// The mic-only fallback with a named microphone: `combined` is the bare
+    /// (unprefixed) mic diarization, so the pinned name has to be keyed by the
+    /// raw diarizer id there, not `M_`-prefixed, or the user's track would
+    /// come out as whatever the matcher proposed (here the mock's "Bob").
+    func testDiarizeDualTrackAppFailKeepsTheNamedMicAsOneSpeaker() async throws {
+        let engine = MockEngine()
+        engine.segmentsToReturn = [TimestampedSegment(start: 0, end: 5, text: "Hello")]
+        let diar = MockDiarization()
+        diar.throwOnPathSuffix = "app_16k.wav"
+        diar.resultToReturn = DiarizationResult(
+            segments: [.init(start: 0, end: 5, speaker: "SPEAKER_0")],
+            speakingTimes: ["SPEAKER_0": 5],
+            autoNames: ["SPEAKER_0": "Bob"],
+            embeddings: nil,
+        )
+        let protocolGen = MockProtocolGen()
+        let q = makeCapturingQueue(engine: engine, diar: diar, protocolGen: protocolGen, micLabel: "Me")
+
+        try q.enqueue(makeDualSourceJob(title: "Dual AppFail Named Mic"))
+        await q.processNext()
+
+        let transcript = try XCTUnwrap(protocolGen.capturedTranscript)
+        XCTAssertTrue(transcript.contains("] Me:"), "named mic stays the named mic — got: \(transcript)")
+        XCTAssertTrue(transcript.contains("] Remote:"), "app segments keep their raw tag — got: \(transcript)")
+        XCTAssertFalse(transcript.contains("Bob"), "the diarizer's name for the mic cluster loses — got: \(transcript)")
     }
 
     /// Dual-track diarization must shift the mic track's diarization by
@@ -2539,7 +2619,10 @@ final class PipelineQueueTests: XCTestCase {
             embeddings: nil,
         )
         let protocolGen = MockProtocolGen()
-        let q = makeCapturingQueue(engine: engine, diar: diar, protocolGen: protocolGen)
+        // Unnamed microphone on purpose: a named one collapses the mic track to
+        // a single speaker, which would mask the misalignment this test exists
+        // to catch.
+        let q = makeCapturingQueue(engine: engine, diar: diar, protocolGen: protocolGen, micLabel: "")
 
         try q.enqueue(makeDualSourceJob(title: "MicDelay", micDelay: 100))
         await q.processNext()

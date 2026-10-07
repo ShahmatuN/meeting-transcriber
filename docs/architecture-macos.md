@@ -560,9 +560,9 @@ No overlap → nearest-segment fallback by gap distance. Only if no diarization 
 
 When dual-source recording (app + mic) is available:
 1. Transcribe app/mic tracks separately → "Remote" / micLabel segments
-2. Diarize app track and mic track separately via FluidAudio
+2. Diarize app track and mic track separately via FluidAudio; a named microphone (`AppSettings.micName` non-empty) has its mic diarization collapsed to the dominant cluster (`collapseToSingleSpeaker()`) and that speaker pinned to the name (`DiarizationRun.pinnedNames`), so the user is one speaker however many clusters the diarizer found
 3. `mergeDualTrackDiarization()` — prefix speaker IDs (`R_` for remote, `M_` for local), merge segments by time
-4. `preMatchParticipants()` — heuristic assignment of Teams participants to unmatched speakers by speaking time
+4. `preMatchParticipants()` — heuristic assignment of Teams participants to unmatched speakers by speaking time (pinned names count as matched)
 5. Speaker naming UI — all speakers editable with participant suggestions
 6. `assignSpeakersDualTrack()` — app segments matched against app diarization, mic segments against mic diarization
 

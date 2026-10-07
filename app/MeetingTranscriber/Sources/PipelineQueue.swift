@@ -22,6 +22,14 @@ struct DiarizationRun {
     let app: DiarizationResult?
     let mic: DiarizationResult?
     let combined: DiarizationResult?
+    /// Names decided before any matching, keyed like `combined`'s speakers
+    /// (`M_`-prefixed in the merged topology, raw in a single-track fallback).
+    /// Today that is one entry: the microphone track collapsed to the user's
+    /// own name (`micLabel`). Speaker naming applies these over whatever the
+    /// voice matcher says, and the participant pre-match skips them, because
+    /// a name the recording's topology already settles is not a guess for a
+    /// matcher to overturn. Empty when nothing was pinned.
+    var pinnedNames: [String: String] = [:]
 }
 
 @MainActor

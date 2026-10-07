@@ -154,6 +154,66 @@ final class SpeakerNamingSessionTests: XCTestCase {
         }
     }
 
+    // MARK: - Pinned names
+
+    /// A name the recording's topology already settles (the named microphone,
+    /// `DiarizationRun.pinnedNames`) outranks the matcher and is skipped by the
+    /// participant pre-match. With one remote speaker and one invited
+    /// participant, the pre-match only fires if the pinned mic speaker does
+    /// not count as unmatched; without the pin it would see two unknowns
+    /// against one name and assign nothing.
+    func testResolveSpeakerNamesAppliesPinnedNamesBeforeTheParticipantPreMatch() {
+        let session = makeSession(outputDir: nil)
+        let mock = MockDelegate()
+        session.delegate = mock
+        var job = pendingJob(namingSlug: nil, transcriptPath: nil)
+        job.state = .diarizing
+        mock.jobs[job.id] = job
+
+        let remote = SpeakerKey(track: .app, id: "SPEAKER_0").encoded
+        let local = SpeakerKey(track: .mic, id: "SPEAKER_0").encoded
+        let diarization = DiarizationResult(
+            segments: [], speakingTimes: [remote: 30, local: 30], autoNames: [:],
+            embeddings: [remote: [1, 0, 0], local: [0, 1, 0]],
+        )
+
+        let names = session.resolveSpeakerNames(
+            diarization: diarization,
+            job: (jobID: job.id, title: "Standup", slug: "standup_abcd1234", participants: ["Kirill"]),
+            diarizeProcess: MockDiarization(),
+            isDualSource: true, outputDir: FileManager.default.temporaryDirectory,
+            pinnedNames: [local: "Me"],
+        )
+
+        XCTAssertEqual(names[local], "Me")
+        XCTAssertEqual(names[remote], "Kirill")
+        // The parked dialog data carries the same answer the transcript got.
+        XCTAssertEqual(session.speakerNamingDataByJob[job.id]?.mapping[local], "Me")
+    }
+
+    /// The no-embeddings branch returns the diarizer's own names untouched by
+    /// any matcher; the pin still has to land there, or a diarizer without
+    /// embeddings would show the raw `M_` id for the named microphone.
+    func testResolveSpeakerNamesAppliesPinnedNamesWithoutEmbeddings() {
+        let session = makeSession(outputDir: nil)
+        let local = SpeakerKey(track: .mic, id: "SPEAKER_0").encoded
+        let remote = SpeakerKey(track: .app, id: "SPEAKER_0").encoded
+        let diarization = DiarizationResult(
+            segments: [], speakingTimes: [remote: 30, local: 30],
+            autoNames: [remote: "Alice", local: "Carol"], embeddings: nil,
+        )
+
+        let names = session.resolveSpeakerNames(
+            diarization: diarization,
+            job: (jobID: UUID(), title: "Standup", slug: "standup_abcd1234", participants: []),
+            diarizeProcess: MockDiarization(),
+            isDualSource: true, outputDir: FileManager.default.temporaryDirectory,
+            pinnedNames: [local: "Me"],
+        )
+
+        XCTAssertEqual(names, [remote: "Alice", local: "Me"])
+    }
+
     // MARK: - Echo quarantine
 
     /// Drives the real confirm path, because the pure filter being correct is

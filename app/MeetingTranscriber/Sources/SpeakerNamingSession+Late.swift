@@ -181,7 +181,7 @@ extension SpeakerNamingSession {
             guard let combined = run.combined else { throw DiarizationError.notAvailable }
             guard let newNamingData = buildNamingData(
                 jobID: jobID, title: title,
-                diarization: combined, prior: namingData,
+                diarization: combined, prior: namingData, pinnedNames: run.pinnedNames,
             ) else {
                 logger.warning("Late re-diarization produced no embeddings")
                 delegate.updateJobState(id: jobID, to: .speakerNamingPending)
@@ -283,11 +283,15 @@ extension SpeakerNamingSession {
     private func buildNamingData(
         jobID: UUID, title: String,
         diarization: DiarizationResult, prior: SpeakerNamingData,
+        pinnedNames: [String: String],
     ) -> SpeakerNamingData? {
         guard let embeddings = diarization.embeddings else { return nil }
 
         let matcher = speakerMatcherFactory()
-        var autoNames = matcher.match(embeddings: embeddings)
+        // Pinned names outrank the matcher here exactly as in the first pass
+        // (`resolveSpeakerNames`), or a re-run would hand the user's own track
+        // back to whichever stored voice is nearest.
+        var autoNames = matcher.match(embeddings: embeddings).merging(pinnedNames) { _, pinned in pinned }
         if !prior.participants.isEmpty {
             autoNames = SpeakerMatcher.preMatchParticipants(
                 mapping: autoNames,

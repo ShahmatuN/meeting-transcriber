@@ -155,6 +155,57 @@ enum DiarizationProcess {
         )
     }
 
+    /// Fold every speaker of a diarization into the one that spoke longest,
+    /// for a track known to carry a single person: the microphone of a user
+    /// who has given it a name (`AppSettings.micName`).
+    ///
+    /// The diarizer still runs on that track, on purpose. It separates the
+    /// far end bleeding in through a loudspeaker, a second person leaning in,
+    /// and the diarizer's own habit of splitting one voice into several
+    /// clusters; collapsing afterwards, rather than asking the diarizer for
+    /// exactly one speaker, keeps the dominant cluster's embedding clean of
+    /// those admixtures, and that embedding is what the speaker database
+    /// learns for the user's own voice. Every segment is re-tagged with the
+    /// dominant id so each microphone utterance is attributed to that one
+    /// speaker; the speaking times are summed under it because the segments
+    /// it now carries are all of them; and only the dominant cluster's
+    /// embedding survives, since an average over clusters would mix back in
+    /// exactly what the diarizer had separated. The raw diarizer id is kept
+    /// (not replaced by the name) so the result still looks like the
+    /// diarizer's output to everything downstream: prefixing, naming data,
+    /// the late re-run. `autoNames` is left empty; the name travels on
+    /// `DiarizationRun.pinnedNames`. A result with no speakers comes back
+    /// unchanged.
+    static func collapseToSingleSpeaker(_ result: DiarizationResult) -> DiarizationResult {
+        guard let dominant = dominantSpeaker(of: result) else { return result }
+        let segments = result.segments.map { seg in
+            DiarizationResult.Segment(start: seg.start, end: seg.end, speaker: dominant)
+        }
+        let total = result.speakingTimes.values.reduce(0, +)
+        var embeddings: [String: [Float]]? // swiftlint:disable:this discouraged_optional_collection
+        if let all = result.embeddings {
+            embeddings = all[dominant].map { [dominant: $0] } ?? [:]
+        }
+        return DiarizationResult(
+            segments: segments,
+            speakingTimes: [dominant: total],
+            autoNames: [:],
+            embeddings: embeddings,
+        )
+    }
+
+    /// The speaker with the most speaking time, ties broken by id so the
+    /// choice is stable across runs; falls back to the first segment's
+    /// speaker when the diarizer reported no speaking times at all.
+    static func dominantSpeaker(of result: DiarizationResult) -> String? {
+        if let best = result.speakingTimes.max(by: { a, b in
+            a.value != b.value ? a.value < b.value : a.key > b.key
+        }) {
+            return best.key
+        }
+        return result.segments.first?.speaker
+    }
+
     /// Merge two separate diarization results (app + mic) into one,
     /// prefixing speaker IDs with `R_` (remote/app) and `M_` (mic/local).
     static func mergeDualTrackDiarization(

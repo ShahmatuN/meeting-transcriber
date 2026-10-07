@@ -281,19 +281,29 @@ final class SpeakerNamingSession {
     /// `completeSpeakerNaming`, so this stage never blocks the pipeline. A job
     /// that opts out via `autoSkipNaming` (headless blocking-transcribe)
     /// finishes on the auto-names without a dialog.
+    ///
+    /// `pinnedNames` (`DiarizationRun.pinnedNames`) are applied over the
+    /// matcher's answer and before the participant pre-match, which then
+    /// skips them as already named. The matcher still runs on a pinned
+    /// speaker so its candidates reach the recognition log, but it does not
+    /// get a vote: the one measured failure is the user's own microphone
+    /// track matched to a colleague's voice and that name accepted.
     func resolveSpeakerNames(
         diarization: DiarizationResult,
         job: (jobID: UUID, title: String, slug: String, participants: [String]),
         diarizeProcess: any DiarizationProvider,
         isDualSource: Bool, outputDir: URL,
+        pinnedNames: [String: String] = [:],
     ) -> [String: String] {
         let (jobID, title, slug, participants) = job
         // No embeddings → no matching or dialog; keep the diarizer's own names.
-        guard let embeddings = diarization.embeddings else { return diarization.autoNames }
+        guard let embeddings = diarization.embeddings else {
+            return diarization.autoNames.merging(pinnedNames) { _, pinned in pinned }
+        }
 
         let matcher = speakerMatcherFactory()
         let verbose = matcher.matchVerbose(embeddings: embeddings)
-        let matched = verbose.mapValues(\.assignedName)
+        let matched = verbose.mapValues(\.assignedName).merging(pinnedNames) { _, pinned in pinned }
         var autoNames = matched
         let topCandidates = verbose.mapValues(\.topCandidates)
 
