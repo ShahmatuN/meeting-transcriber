@@ -69,6 +69,17 @@ extension TimestampedSegment {
         return copy
     }
 
+    /// A copy with the terminology rules applied to `text`. Same contract as
+    /// `shifted(by:)`: one field changes, every other one travels along. The
+    /// pipeline's normalization pass used to rebuild the segment memberwise
+    /// and so reset `suppressed`, which put the echo-bleed duplicates that
+    /// `EchoSegmentClassifier` had marked back into the transcript (issue #581).
+    func normalized(with normalizer: TerminologyNormalizer) -> TimestampedSegment {
+        var copy = self
+        copy.text = normalizer.normalize(text)
+        return copy
+    }
+
     /// Format timestamp as [MM:SS] or [H:MM:SS] for long recordings.
     var formattedTimestamp: String {
         let total = Int(start)
