@@ -850,6 +850,7 @@ _NC_PRE_DIARIZE_STD=""
 _NC_PRE_DIARIZE_CTR=""
 _NC_PRE_NUMSPK_STD=""
 _NC_PRE_NUMSPK_CTR=""
+_NC_PRE_MICNAME_CTR=""
 # Temp dir holding this lane's private COPY of the fixture (see run_naming_confirm
 # for why a copy is mandatory). Cleaned up by _naming_confirm_cleanup on any exit.
 _NC_FIXTURE_DIR=""
@@ -952,23 +953,32 @@ _naming_confirm_cleanup() {
     # write -int for numSpeakers (a raw 1/0 into `-bool` errors; see the helpers).
     restore_bool_default "$_STANDARD_PLIST" diarize "$_NC_PRE_DIARIZE_STD"
     restore_int_default "$_STANDARD_PLIST" numSpeakers "$_NC_PRE_NUMSPK_STD"
+    # Only the switch lane writes micName, but restoring an untouched snapshot
+    # is a no-op re-write, so this needs no lane check.
+    [ -n "${_NC_PRE_MICNAME_STD:-}" ] && restore_string_default "$_STANDARD_PLIST" micName "$_NC_PRE_MICNAME_STD"
     if [ -f "$_CONTAINER_PLIST" ]; then
         restore_bool_default "$_CONTAINER_PLIST" diarize "$_NC_PRE_DIARIZE_CTR"
         restore_int_default "$_CONTAINER_PLIST" numSpeakers "$_NC_PRE_NUMSPK_CTR"
+        [ -n "${_NC_PRE_MICNAME_CTR:-}" ] && restore_string_default "$_CONTAINER_PLIST" micName "$_NC_PRE_MICNAME_CTR"
     fi
-    local now_diarize now_num
+    local now_diarize now_num now_mic
     now_diarize="$(read_dev_default_effective "$DEV_BUNDLE_ID" "$_CONTAINER_PLIST" diarize)"
     now_num="$(read_dev_default_effective "$DEV_BUNDLE_ID" "$_CONTAINER_PLIST" numSpeakers)"
-    log "[naming-confirm] settings restored (effective diarize='$now_diarize' numSpeakers='$now_num')"
+    now_mic="$(read_dev_default_effective "$DEV_BUNDLE_ID" "$_CONTAINER_PLIST" micName)"
+    log "[naming-confirm] settings restored (effective diarize='$now_diarize' numSpeakers='$now_num' micName='$now_mic')"
 }
 
 # Self-heal a dead prior run's DB before anything touches it (CI-gated, all lanes).
 _naming_confirm_self_heal_db
 if [ "$NAMING_CONFIRM" = true ] || [ "$NAMING_ESCAPE" = true ] || [ "$NAMING_SWITCH" = true ]; then
     # The switch lane pins the app track to ONE remote cluster: the setting
-    # applies to the app track only (the mic track always auto-detects), and
-    # with a single remote speaker the mic clusters alone decide where
-    # R_SPEAKER_00 sits, which is the position the lane needs to move.
+    # applies to the app track only (the mic track auto-detects), and with a
+    # single remote speaker the mic clusters alone decide where R_SPEAKER_00
+    # sits, which is the position the lane needs to move. That needs the mic
+    # track to come out as SEVERAL speakers, and a named microphone
+    # (`micName`, default "Me") is folded into one by the pipeline, so the
+    # switch lane clears the name for its run; the other naming lanes keep
+    # whatever the runner has, since a one-row mic track suits them.
     _NAMING_NUM_SPEAKERS=2
     [ "$NAMING_SWITCH" = true ] && _NAMING_NUM_SPEAKERS=1
     log "Enabling naming lane (diarize on, expected speakers = $_NAMING_NUM_SPEAKERS)"
@@ -976,13 +986,19 @@ if [ "$NAMING_CONFIRM" = true ] || [ "$NAMING_ESCAPE" = true ] || [ "$NAMING_SWI
     # restores each domain to exactly its own pre-lane state.
     _NC_PRE_DIARIZE_STD="$(snapshot_default "$_STANDARD_PLIST" diarize)"
     _NC_PRE_NUMSPK_STD="$(snapshot_default "$_STANDARD_PLIST" numSpeakers)"
+    _NC_PRE_MICNAME_STD="$(snapshot_string_default "$_STANDARD_PLIST" micName)"
     if [ -f "$_CONTAINER_PLIST" ]; then
         _NC_PRE_DIARIZE_CTR="$(snapshot_default "$_CONTAINER_PLIST" diarize)"
         _NC_PRE_NUMSPK_CTR="$(snapshot_default "$_CONTAINER_PLIST" numSpeakers)"
+        _NC_PRE_MICNAME_CTR="$(snapshot_string_default "$_CONTAINER_PLIST" micName)"
     fi
-    log "[naming-confirm] pre-lane diarize(std='$_NC_PRE_DIARIZE_STD' ctr='$_NC_PRE_DIARIZE_CTR') numSpeakers(std='$_NC_PRE_NUMSPK_STD' ctr='$_NC_PRE_NUMSPK_CTR')"
+    log "[naming-confirm] pre-lane diarize(std='$_NC_PRE_DIARIZE_STD' ctr='$_NC_PRE_DIARIZE_CTR') numSpeakers(std='$_NC_PRE_NUMSPK_STD' ctr='$_NC_PRE_NUMSPK_CTR') micName(std='$_NC_PRE_MICNAME_STD' ctr='$_NC_PRE_MICNAME_CTR')"
     _set_dev_default diarize true bool
     _set_dev_default numSpeakers "$_NAMING_NUM_SPEAKERS" int
+    if [ "$NAMING_SWITCH" = true ]; then
+        log "[naming-switch] clearing micName so the mic track is diarized into its own speakers"
+        _set_dev_default micName "" string
+    fi
     if [ "${GITHUB_ACTIONS:-}" != "true" ] && [ "$NAMING_ESCAPE" != true ]; then
         # Escape-lane runs never confirm — they dismiss — so nothing reaches
         # updateSpeakerDB and the warning would be a false alarm on the one run

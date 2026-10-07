@@ -69,7 +69,9 @@ PRs are excluded from the self-hosted runner.
   pairs under one stem (a
   paired import takes the stem as its title, and one title keeps one view alive
   across the switch), pins expected speakers to 1 so the app track yields exactly
-  one remote (`R_`) cluster and the mic tracks (three speakers, then one voice cut
+  one remote (`R_`) cluster, clears `micName` for the run (a named microphone
+  is folded into one `M_` speaker by the pipeline, and the lane needs the mic
+  clusters) so the mic tracks (three speakers, then one voice cut
   from a ground-truth fixture) alone decide its row, and asserts that geometry
   before touching the dialog, so a diarizer that hears the fixtures differently
   fails the lane as "geometry not staged" rather than passing vacuously. It then

@@ -223,6 +223,37 @@ restore_int_default() {
     fi
 }
 
+# Snapshot a defaults string so that it can be put back exactly. Unlike
+# `snapshot_default`, this tells an UNSET key apart from one set to the empty
+# string: `defaults read` prints nothing for both, but for the app's `micName`
+# the two mean different things (unset falls back to "Me", empty means
+# "diarize the mic track"), so a snapshot that collapsed them would restore
+# the wrong one. An unset key is reported as the sentinel below.
+E2E_DEFAULT_UNSET="__e2e_unset__"
+snapshot_string_default() {
+    local bundle="$1"
+    local key="$2"
+    local value
+    if value="$(/usr/bin/defaults read "$bundle" "$key" 2>/dev/null)"; then
+        printf '%s' "$value"
+    else
+        printf '%s' "$E2E_DEFAULT_UNSET"
+    fi
+}
+
+# Inverse of `snapshot_string_default`: the sentinel deletes the key, anything
+# else (the empty string included) is written back verbatim as a string.
+restore_string_default() {
+    local bundle="$1"
+    local key="$2"
+    local saved="$3"
+    if [ "$saved" = "$E2E_DEFAULT_UNSET" ]; then
+        /usr/bin/defaults delete "$bundle" "$key" 2>/dev/null || true
+    else
+        /usr/bin/defaults write "$bundle" "$key" -string "$saved"
+    fi
+}
+
 # Write a dev-bundle default so the RUNNING APP actually sees it.
 #
 # Say once per run that this host redirects `defaults <bundle-id>` into a
