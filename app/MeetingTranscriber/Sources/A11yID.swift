@@ -57,6 +57,8 @@ enum A11yID {
 
     /// Settings → Advanced, the one place the app asks for Screen Recording.
     static let screenRecordingRequestButton = "screenRecordingRequestButton"
+    /// Settings → General: the false-trigger threshold (`AppSettings.minimumAutoRecordingSeconds`).
+    static let minimumAutoRecordingStepper = "minimumAutoRecordingStepper"
     static let transcriptionSection = "transcriptionSection"
     static let protocolSection = "protocolSection"
     static let includeFullTranscriptToggle = "includeFullTranscriptToggle"

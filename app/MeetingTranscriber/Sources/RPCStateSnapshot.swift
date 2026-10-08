@@ -358,6 +358,8 @@
 
             struct Recording: Codable {
                 let endGraceSeconds: Double
+                /// `AppSettings.minimumAutoRecordingSeconds`; 0 = keep everything.
+                let minimumAutoRecordingSeconds: Double
                 let noMic: Bool
                 let recordOnly: Bool
                 /// CoreAudio device UID; empty string = system default.
@@ -371,7 +373,7 @@
                 let asymmetricSilenceWarningSeconds: Double
 
                 static let empty = Self(
-                    endGraceSeconds: 0, noMic: false, recordOnly: false,
+                    endGraceSeconds: 0, minimumAutoRecordingSeconds: 0, noMic: false, recordOnly: false,
                     micDeviceUID: "", micName: "", perChannelIndicatorEnabled: false,
                     liveTranscriptionEnabled: false, liveCaptionsOverlayEnabled: false,
                     liveCaptionsSize: "", asymmetricSilenceWarningSeconds: 0,

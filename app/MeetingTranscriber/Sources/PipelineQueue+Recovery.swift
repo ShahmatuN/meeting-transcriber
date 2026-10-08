@@ -385,6 +385,7 @@ extension PipelineQueue {
         let trackedPaths = Set(jobs.compactMap { $0.mixPath?.standardizedFileURL.path })
         let runningPaths = inFlightRuns.claimedAudioPaths
         let ledger = processedLedger
+        let minimumSeconds = minimumRecoveredRecordingSeconds
 
         // Off-main: directory scan + processed-list read + per-file
         // attributesOfItem probes + filtering all happen here.
@@ -396,7 +397,7 @@ extension PipelineQueue {
             ) else { return [] }
             let processedPaths = ledger.load()
             let now = Date()
-            return PairedRecordingResolver.resolve(urls: entries).paired.filter { group in
+            let untracked = PairedRecordingResolver.resolve(urls: entries).paired.filter { group in
                 // Groups without a real mix file (app+mic-only paired imports)
                 // aren't recoverable from the dir scan alone.
                 guard let mixURL = group.mix else { return false }
@@ -415,6 +416,7 @@ extension PipelineQueue {
                 }
                 return true
             }
+            return Self.discardingShortRecoveries(untracked, minimum: minimumSeconds)
         }.value
 
         guard !candidates.isEmpty else { return }
@@ -436,5 +438,34 @@ extension PipelineQueue {
         saveSnapshot()
         logger.info("Recovered \(candidates.count) orphaned recording(s)")
         triggerProcessing()
+    }
+
+    /// Apply `ShortRecordingPolicy` to recovered groups and delete the ones it
+    /// drops, returning the rest. A recovered recording has no trigger on
+    /// record, so it is judged as automatic: a crash that cut a real meeting
+    /// to under the threshold lost nothing worth a dialog, and the two
+    /// measured cases (3 s and 14 s) were false triggers the crash interrupted.
+    /// The files are removed rather than merely skipped, since a skipped group
+    /// is rescanned on every launch for as long as `maxAge` allows. A file the
+    /// header cannot be read from has an unknown duration and is kept.
+    nonisolated static func discardingShortRecoveries(
+        _ groups: [PairedRecordingResolver.Group], minimum: TimeInterval,
+    ) -> [PairedRecordingResolver.Group] {
+        guard minimum > 0 else { return groups }
+        let fm = FileManager.default
+        return groups.filter { group in
+            guard let mix = group.mix else { return true }
+            let duration = AudioFileDuration.seconds(of: mix)
+            guard ShortRecordingPolicy.discards(trigger: .auto, duration: duration, minimum: minimum) else {
+                return true
+            }
+            for url in [group.mix, group.app, group.mic].compactMap(\.self) {
+                try? fm.removeItem(at: url)
+            }
+            logger.info(
+                "Discarded recovered recording \(group.stem, privacy: .private): \(Int(duration ?? 0), privacy: .public) s, below the \(Int(minimum), privacy: .public) s minimum",
+            )
+            return false
+        }
     }
 }

@@ -67,6 +67,10 @@ class WatchLoop {
     /// Surface user-facing failures (e.g. sidecar write errors) that don't
     /// transition state to `.error`. Defaults to a silent no-op for tests.
     let notifier: any AppNotifying
+    /// `AppSettings.minimumAutoRecordingSeconds`, read when a recording ends.
+    /// Defaults to 0 (keep everything) so the many tests that record for a
+    /// fraction of a second are not judged by a threshold meant for people.
+    let minimumAutoRecordingSeconds: () -> TimeInterval
 
     /// Wall-clock source. Defaults to `Date()`; tests inject a `TestClock`
     /// so timing-sensitive paths become deterministic instead of racing
@@ -139,6 +143,7 @@ class WatchLoop {
         micDeviceUID: String? = nil,
         verboseDiagnostics: @escaping () -> Bool = { false },
         recordOnly: @escaping () -> Bool = { false },
+        minimumAutoRecordingSeconds: @escaping () -> TimeInterval = { 0 },
         recordOnlyDestination: @escaping () -> RecordOnlyDestination = {
             .unscoped(AppPaths.recordingsDir)
         },
@@ -164,6 +169,7 @@ class WatchLoop {
         self.micDeviceUID = micDeviceUID
         self.verboseDiagnostics = verboseDiagnostics
         self.recordOnly = recordOnly
+        self.minimumAutoRecordingSeconds = minimumAutoRecordingSeconds
         self.recordOnlyDestination = recordOnlyDestination
         self.notifier = notifier
         self.nowProvider = nowProvider
@@ -525,6 +531,8 @@ class WatchLoop {
             }
             return
         }
+
+        if discardIfShort(recording, trigger: trigger, appName: appName) { return }
 
         let job = PipelineJob(
             meetingTitle: title,

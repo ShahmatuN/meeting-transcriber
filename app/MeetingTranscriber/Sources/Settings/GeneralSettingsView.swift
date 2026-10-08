@@ -87,9 +87,34 @@ struct GeneralSettingsView: View {
                         .labelsHidden()
                     Text("seconds").foregroundStyle(.secondary)
                 }
+
+                minimumAutoRecordingRow
             }
         }
         .formStyle(.grouped)
+    }
+
+    /// The false-trigger threshold. A detector can fire on a lobby page or a
+    /// voice message, and the grace period ends such a capture after seconds;
+    /// below this length an automatic recording is dropped rather than
+    /// transcribed and offered for speaker naming.
+    private var minimumAutoRecordingRow: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text("Discard Auto Recordings Shorter Than")
+                Spacer()
+                TextField("", value: $settings.minimumAutoRecordingSeconds, format: .number)
+                    .frame(width: 60)
+                    .multilineTextAlignment(.trailing)
+                Stepper("", value: $settings.minimumAutoRecordingSeconds, in: 0 ... 600, step: 10)
+                    .labelsHidden()
+                    .accessibilityIdentifier(A11yID.minimumAutoRecordingStepper)
+                Text("seconds").foregroundStyle(.secondary)
+            }
+            Text("A capture this short is a false trigger, not a meeting. 0 keeps everything; manual recordings are always kept.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
     }
 
     /// The one browser meeting that may skip the prompt. Nested under the

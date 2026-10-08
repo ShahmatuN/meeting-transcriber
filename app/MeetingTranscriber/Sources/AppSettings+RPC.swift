@@ -44,6 +44,7 @@
         private func rpcRecordingSettings() -> RPCStateSnapshot.Settings.Recording {
             RPCStateSnapshot.Settings.Recording(
                 endGraceSeconds: endGrace,
+                minimumAutoRecordingSeconds: minimumAutoRecordingSeconds,
                 noMic: noMic,
                 recordOnly: recordOnly,
                 micDeviceUID: micDeviceUID,

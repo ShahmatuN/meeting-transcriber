@@ -217,6 +217,17 @@ final class AppSettings {
         }
     }
 
+    /// Automatic recordings shorter than this many seconds are discarded
+    /// instead of transcribed (`ShortRecordingPolicy`): a false trigger is
+    /// not worth a pipeline run and a naming dialog. 0 keeps everything;
+    /// manual recordings are never judged by it.
+    var minimumAutoRecordingSeconds: Double {
+        didSet {
+            if minimumAutoRecordingSeconds < 0 { minimumAutoRecordingSeconds = 0 }
+            defaults.set(minimumAutoRecordingSeconds, forKey: "minimumAutoRecordingSeconds")
+        }
+    }
+
     var noMic: Bool {
         didSet { defaults.set(noMic, forKey: "noMic") }
     }
@@ -602,6 +613,7 @@ final class AppSettings {
 
         pollInterval = defaults.object(forKey: "pollInterval") as? Double ?? 3.0
         endGrace = defaults.object(forKey: "endGrace") as? Double ?? 15.0
+        minimumAutoRecordingSeconds = defaults.object(forKey: "minimumAutoRecordingSeconds") as? Double ?? 60.0
         noMic = defaults.object(forKey: "noMic") as? Bool ?? false
         recordOnly = defaults.object(forKey: "recordOnly") as? Bool ?? false
         micDeviceUID = defaults.object(forKey: "micDeviceUID") as? String ?? ""

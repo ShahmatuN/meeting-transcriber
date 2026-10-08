@@ -46,6 +46,7 @@
             XCTAssertFalse(s.detection.autoWatch)
             XCTAssertEqual(s.detection.pollIntervalSeconds, 3.0)
             XCTAssertEqual(s.recording.endGraceSeconds, 15.0)
+            XCTAssertEqual(s.recording.minimumAutoRecordingSeconds, 60.0)
             XCTAssertFalse(s.recording.recordOnly)
             XCTAssertEqual(s.recording.micName, "Me")
             XCTAssertTrue(s.recording.perChannelIndicatorEnabled)
@@ -234,7 +235,8 @@
                 "detection.watchTeams", "detection.watchZoom", "detection.watchWebex",
                 "detection.watchBrowserMeetings", "detection.autoRecordGoogleMeet",
                 "detection.autoWatch", "detection.pollIntervalSeconds",
-                "recording.endGraceSeconds", "recording.noMic", "recording.recordOnly",
+                "recording.endGraceSeconds", "recording.minimumAutoRecordingSeconds",
+                "recording.noMic", "recording.recordOnly",
                 "recording.micDeviceUID", "recording.micName",
                 "recording.perChannelIndicatorEnabled", "recording.liveTranscriptionEnabled",
                 "recording.liveCaptionsOverlayEnabled", "recording.liveCaptionsSize",

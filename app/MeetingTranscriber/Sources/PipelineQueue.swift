@@ -110,6 +110,10 @@ class PipelineQueue {
     let echoCancellerFactory: () -> (any EchoCancelling)?
     let numSpeakers: Int
     let micLabel: String
+    /// `AppSettings.minimumAutoRecordingSeconds` as it stood when the queue was
+    /// built, applied to orphan recovery: a crash leftover shorter than this is
+    /// a false trigger the crash merely interrupted. 0 recovers everything.
+    let minimumRecoveredRecordingSeconds: TimeInterval
     /// Compatibility policy for snapshots created before a job carried its own
     /// output options.
     private let fallbackTranscriptOutputOptions: TranscriptOutputOptions
@@ -279,6 +283,7 @@ class PipelineQueue {
         inFlightRuns: InFlightRunRegistry? = nil,
         echoCancellationEnabled: @escaping () -> Bool = { false },
         echoCancellerFactory: (() -> (any EchoCancelling)?)? = nil,
+        minimumRecoveredRecordingSeconds: TimeInterval = 0,
     ) {
         self.logDir = logDir ?? AppPaths.ipcDir
         self.processedLedger = ProcessedRecordingsLedger(logDir: self.logDir)
@@ -295,6 +300,7 @@ class PipelineQueue {
         self.echoCancellerFactory = echoCancellerFactory ?? { Self.bundledEchoCanceller() }
         self.numSpeakers = 0
         self.micLabel = "Me"
+        self.minimumRecoveredRecordingSeconds = minimumRecoveredRecordingSeconds
         let outputOptions = TranscriptOutputOptions(
             includeFullTranscriptInProtocol: true,
             saveRawTranscriptSeparately: true,
@@ -379,6 +385,7 @@ class PipelineQueue {
         echoCancellerFactory: (() -> (any EchoCancelling)?)? = nil,
         numSpeakers: Int = 0,
         micLabel: String = "Me",
+        minimumRecoveredRecordingSeconds: TimeInterval = 0,
         includeFullTranscriptInProtocol: Bool = true,
         saveRawTranscriptSeparately: Bool = true,
         transcriptOutputOptionsProvider: (() -> TranscriptOutputOptions)? = nil,
@@ -415,6 +422,7 @@ class PipelineQueue {
         // of micLabel for both the tagging and the re-split, so sanitizing here
         // keeps them consistent.)
         self.micLabel = micLabel == DiarizationProcess.remoteSpeakerLabel ? "Me" : micLabel
+        self.minimumRecoveredRecordingSeconds = minimumRecoveredRecordingSeconds
         let outputOptions = TranscriptOutputOptions(
             includeFullTranscriptInProtocol: includeFullTranscriptInProtocol,
             saveRawTranscriptSeparately: saveRawTranscriptSeparately,

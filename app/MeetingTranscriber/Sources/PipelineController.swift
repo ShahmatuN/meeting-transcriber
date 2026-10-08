@@ -124,6 +124,7 @@ final class PipelineController {
             echoCancellationEnabled: { [settings] in settings.echoCancellationEnabled },
             numSpeakers: settings.numSpeakers,
             micLabel: settings.micName,
+            minimumRecoveredRecordingSeconds: settings.minimumAutoRecordingSeconds,
             includeFullTranscriptInProtocol: settings.includeFullTranscriptInProtocol,
             saveRawTranscriptSeparately: settings.saveRawTranscriptSeparately,
             transcriptOutputOptionsProvider: { [settings] in

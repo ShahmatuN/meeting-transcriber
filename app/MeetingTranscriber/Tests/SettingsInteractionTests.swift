@@ -127,6 +127,19 @@ final class SettingsInteractionTests: XCTestCase {
         XCTAssertEqual(settings.endGrace, 6.0, accuracy: 0.0001, "stepping (step 1) must write back to endGrace")
     }
 
+    func testMinimumAutoRecordingStepperIncrementsSetting() throws {
+        let settings = makeSettings()
+        settings.minimumAutoRecordingSeconds = 60
+        let view = GeneralSettingsView(settings: settings)
+
+        let stepper = try view.inspect()
+            .find(viewWithAccessibilityIdentifier: A11yID.minimumAutoRecordingStepper)
+            .find(ViewType.Stepper.self)
+        try stepper.increment()
+
+        XCTAssertEqual(settings.minimumAutoRecordingSeconds, 70, accuracy: 0.0001, "stepping (step 10) must write back")
+    }
+
     // MARK: - Live caption overlay toggle
 
     func testShowCaptionOverlayToggleBindsToSettings() throws {

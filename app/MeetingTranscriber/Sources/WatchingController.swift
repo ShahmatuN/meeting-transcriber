@@ -218,28 +218,7 @@ final class WatchingController {
                 syncEngines?()
                 pipeline.rebuild()
 
-                let loop = WatchLoop(
-                    detector: makeDetector(),
-                    recorderFactory: makeRecorderFactory(),
-                    pipelineQueue: pipeline.queue,
-                    pollInterval: settings.pollInterval,
-                    endGracePeriod: settings.endGrace,
-                    noMic: settings.noMic,
-                    micDeviceUID: settings.micDeviceUID.isEmpty ? nil : settings.micDeviceUID,
-                    verboseDiagnostics: { [settings] in settings.verboseDiagnostics },
-                    recordOnly: { [settings] in settings.recordOnly },
-                    // Decided per write, not per poll: the loop calls this once
-                    // when a record-only recording is persisted, so a folder that
-                    // cannot be reached is reported there (see the resolver).
-                    recordOnlyDestination: { [pipeline] in
-                        .production(parent: pipeline.outputDirectory.resolve())
-                    },
-                    notifier: notifier,
-                    denyListStore: ConsentDenyListStore(settings: settings),
-                    scheduledMeeting: { [calendar] in calendar?.scheduledMeeting(at: $0) },
-                    autoRecordEnabled: { [settings] in settings.watchBrowserMeetings && settings.autoRecordGoogleMeet },
-                    browserTabURLs: Self.browserTabURLProvider(),
-                )
+                let loop = makeAutoWatchLoop()
 
                 attachStateChangeHandler(to: loop, notifyOnRecording: true)
 
@@ -465,6 +444,7 @@ final class WatchingController {
             micDeviceUID: settings.micDeviceUID.isEmpty ? nil : settings.micDeviceUID,
             verboseDiagnostics: { [settings] in settings.verboseDiagnostics },
             recordOnly: { [settings] in settings.recordOnly },
+            minimumAutoRecordingSeconds: { [settings] in settings.minimumAutoRecordingSeconds },
             // Same seam as the auto-watch loop above: per write, through the
             // shared resolver.
             recordOnlyDestination: { [pipeline] in
@@ -588,5 +568,32 @@ final class WatchingController {
                 self?.channelHealth.stop()
             }
         }
+    }
+}
+
+extension WatchingController {
+    /// The automatic-watching loop, wired to the live settings (the manual loop is built in `startManualRecording`).
+    private func makeAutoWatchLoop() -> WatchLoop {
+        WatchLoop(
+            detector: makeDetector(),
+            recorderFactory: makeRecorderFactory(),
+            pipelineQueue: pipeline.queue,
+            pollInterval: settings.pollInterval,
+            endGracePeriod: settings.endGrace,
+            noMic: settings.noMic,
+            micDeviceUID: settings.micDeviceUID.isEmpty ? nil : settings.micDeviceUID,
+            verboseDiagnostics: { [settings] in settings.verboseDiagnostics },
+            recordOnly: { [settings] in settings.recordOnly },
+            minimumAutoRecordingSeconds: { [settings] in settings.minimumAutoRecordingSeconds },
+            // Decided per write, not per poll, so an unreachable folder is reported there (see the resolver).
+            recordOnlyDestination: { [pipeline] in
+                .production(parent: pipeline.outputDirectory.resolve())
+            },
+            notifier: notifier,
+            denyListStore: ConsentDenyListStore(settings: settings),
+            scheduledMeeting: { [calendar] in calendar?.scheduledMeeting(at: $0) },
+            autoRecordEnabled: { [settings] in settings.watchBrowserMeetings && settings.autoRecordGoogleMeet },
+            browserTabURLs: Self.browserTabURLProvider(),
+        )
     }
 }
