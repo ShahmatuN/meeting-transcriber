@@ -65,12 +65,17 @@ extension SpeakerNamingSession {
                 // Format from `TimestampedSegment.formattedLine`: `[MM:SS] Speaker: text`.
                 // Anchor the replace on `] ` + label + `:` so we hit the speaker
                 // slot and not a substring inside the spoken text.
+                var renames: [(from: String, to: String)] = []
                 for (label, name) in mapping where !name.isEmpty {
                     transcript = transcript.replacingOccurrences(of: "] \(label):", with: "] \(name):")
+                    renames.append((label, name))
                     if let autoName = namingData.mapping[label], autoName != label, autoName != name {
                         transcript = transcript.replacingOccurrences(of: "] \(autoName):", with: "] \(name):")
+                        renames.append((autoName, name))
                     }
                 }
+                // The `.readable` layout lists the speakers in its header too.
+                transcript = TranscriptFrontMatter.renameSpeakers(in: transcript, renames: renames)
                 try transcript.write(to: transcriptPath, atomically: true, encoding: .utf8)
                 // Re-applying speaker names rewrites the transcript — keep it
                 // owner-only (the original save in saveTranscript already is).
@@ -342,7 +347,7 @@ extension SpeakerNamingSession {
         guard let delegate, let rebuilt = delegate.renderLabeledTranscript(
             run: run, cachedSegments: cachedSegments,
             isDualSource: isDualSource, autoNames: autoNames,
-            note: delegate.job(withID: jobID)?.trackViability?.transcriptNote,
+            job: (id: jobID, note: delegate.job(withID: jobID)?.trackViability?.transcriptNote),
         ) else { return }
         do {
             try rebuilt.write(to: transcriptPath, atomically: true, encoding: .utf8)

@@ -139,6 +139,9 @@ struct PipelineJob: Identifiable, Codable {
     // See `includeFullTranscriptInProtocol`.
     // swiftlint:disable:next discouraged_optional_boolean
     var saveRawTranscriptSeparately: Bool?
+    /// See `includeFullTranscriptInProtocol`; nil decodes from older snapshots
+    /// and falls back to the queue's default (`.compact`).
+    var transcriptLayout: TranscriptLayout?
     /// Diarizer mode that produced the *current* `speakerNamingDataByJob`
     /// entry. Set by `PipelineQueue` after diarisation completes (in the
     /// initial pipeline run and after `lateDiarization`). Used by the
@@ -215,6 +218,7 @@ struct PipelineJob: Identifiable, Codable {
         self.namingSlug = nil
         self.includeFullTranscriptInProtocol = includeFullTranscriptInProtocol
         self.saveRawTranscriptSeparately = saveRawTranscriptSeparately
+        self.transcriptLayout = nil
         self.usedDiarizerMode = nil
         self.autoSkipNaming = autoSkipNaming
     }

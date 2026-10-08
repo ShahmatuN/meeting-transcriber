@@ -66,7 +66,7 @@ final class SpeakerNamingSessionTests: XCTestCase {
 
         func renderLabeledTranscript(
             run _: DiarizationRun, cachedSegments _: [TimestampedSegment],
-            isDualSource _: Bool, autoNames _: [String: String], note _: String?,
+            isDualSource _: Bool, autoNames _: [String: String], job _: (id: UUID, note: String?),
         ) -> String? {
             nil
         }
@@ -257,6 +257,38 @@ final class SpeakerNamingSessionTests: XCTestCase {
         )
     }
 
+    /// A `.readable` transcript names its speakers twice, in the header's
+    /// `speakers:` map and in the body; a late confirm has to rename both or
+    /// the header keeps the raw label the user just replaced.
+    func testConfirmRenamesTheSpeakerInTheHeaderToo() async throws {
+        let tmp = try makeTempDirectory(prefix: "SpeakerNamingSessionTests")
+        let transcriptPath = tmp.appendingPathComponent("transcript.txt")
+        try """
+        ---
+        title: "Standup"
+        speakers:
+          "SPEAKER_0": "0:00:12"
+        ---
+
+        [00:00] SPEAKER_0: hello
+        """.write(to: transcriptPath, atomically: true, encoding: .utf8)
+
+        let session = makeSession(outputDir: tmp)
+        let mock = MockDelegate()
+        session.delegate = mock
+        let job = pendingJob(namingSlug: "standup_abcd1234", transcriptPath: transcriptPath)
+        mock.jobs[job.id] = job
+        session.speakerNamingDataByJob[job.id] = makeNamingData(jobID: job.id)
+
+        session.completeSpeakerNaming(jobID: job.id, result: .confirmed(["SPEAKER_0": "Alice"]), source: .dialog)
+        await waitUntil { mock.jobs[job.id]?.state == .done }
+
+        let rewritten = try String(contentsOf: transcriptPath, encoding: .utf8)
+        XCTAssertTrue(rewritten.contains("  \"Alice\": \"0:00:12\""), "got:\n\(rewritten)")
+        XCTAssertTrue(rewritten.contains("] Alice: hello"), "got:\n\(rewritten)")
+        XCTAssertFalse(rewritten.contains("SPEAKER_0"), "got:\n\(rewritten)")
+    }
+
     func testConfirmOnACleanRecordingStillLearnsBothTracks() async throws {
         let tmp = try makeTempDirectory(prefix: "SpeakerNamingSessionTests")
         let transcriptPath = tmp.appendingPathComponent("transcript.txt")
@@ -429,7 +461,7 @@ final class SpeakerNamingSessionTests: XCTestCase {
 
         func renderLabeledTranscript(
             run _: DiarizationRun, cachedSegments _: [TimestampedSegment],
-            isDualSource _: Bool, autoNames _: [String: String], note _: String?,
+            isDualSource _: Bool, autoNames _: [String: String], job _: (id: UUID, note: String?),
         ) -> String? {
             nil
         }

@@ -127,10 +127,12 @@ final class PipelineController {
             minimumRecoveredRecordingSeconds: settings.minimumAutoRecordingSeconds,
             includeFullTranscriptInProtocol: settings.includeFullTranscriptInProtocol,
             saveRawTranscriptSeparately: settings.saveRawTranscriptSeparately,
+            transcriptLayout: settings.transcriptLayout,
             transcriptOutputOptionsProvider: { [settings] in
                 TranscriptOutputOptions(
                     includeFullTranscriptInProtocol: settings.includeFullTranscriptInProtocol,
                     saveRawTranscriptSeparately: settings.saveRawTranscriptSeparately,
+                    layout: settings.transcriptLayout,
                 )
             },
             speakerMatcherFactory: { SpeakerMatcher() },

@@ -591,7 +591,7 @@ extension PipelineQueue {
 
             if let labeled = try await labeledTranscript(
                 from: run, autoNames: autoNames, transcription: transcription,
-                engine: engine, mix16k: mix16k,
+                fallback: (engine: engine, mix16k: mix16k), jobID: ctx.jobID,
             ) {
                 finalTranscript = labeled
             }
@@ -783,7 +783,7 @@ extension PipelineQueue {
     /// unchanged. The topologies share the merge + format tail, applied once here.
     private func labeledTranscript(
         from run: DiarizationRun, autoNames: [String: String],
-        transcription: TranscriptionOutput, engine: any TranscribingEngine, mix16k: URL,
+        transcription: TranscriptionOutput, fallback: (engine: any TranscribingEngine, mix16k: URL), jobID: UUID,
     ) async throws -> String? {
         // cachedSegments is set by the transcribe stage in practice; the
         // single-source branch re-transcribes defensively if it's somehow nil.
@@ -793,13 +793,13 @@ extension PipelineQueue {
         } else if transcription.isDualSource {
             return nil
         } else {
-            let rawSegments = try await engine.transcribeSegments(audioPath: mix16k)
+            let rawSegments = try await fallback.engine.transcribeSegments(audioPath: fallback.mix16k)
             cachedSegments = normalize(rawSegments, with: transcription.terminologyNormalizer)
         }
         return renderLabeledTranscript(
             run: run, cachedSegments: cachedSegments,
             isDualSource: transcription.isDualSource, autoNames: autoNames,
-            note: transcription.note,
+            job: (id: jobID, note: transcription.note),
         )
     }
 
@@ -810,10 +810,12 @@ extension PipelineQueue {
     /// (the session's `rewriteTranscriptFromLateRun`) so both re-segment
     /// identically. Returns nil when the run carries no usable diarization.
     /// Internal (not private) because it is a `SpeakerNamingSessionDelegate`
-    /// witness.
+    /// witness. `job.id` selects the job's captured `TranscriptLayout`
+    /// (paragraph gap, block separator, YAML header); `job.note` is the
+    /// recording-level line the transcript opens with, nil for none.
     func renderLabeledTranscript(
         run: DiarizationRun, cachedSegments: [TimestampedSegment],
-        isDualSource: Bool, autoNames: [String: String], note: String?,
+        isDualSource: Bool, autoNames: [String: String], job: (id: UUID, note: String?),
     ) -> String? {
         // Suppressed copies leave before anything gets a speaker. Left in,
         // they would be labeled like real speech and merged into adjacent
@@ -843,7 +845,12 @@ extension PipelineQueue {
         }
         guard let topology else { return nil }
         let labeled = DiarizationProcess.labelSegments(topology, autoNames: autoNames)
-        return DiarizationProcess.mergeConsecutiveSpeakers(labeled).transcriptText(note: note)
+        let layout = transcriptOutputOptions(forJobID: job.id).layout
+        let merged = DiarizationProcess.mergeConsecutiveSpeakers(labeled, gapThreshold: layout.mergeGap)
+        let body = merged.transcriptText(note: job.note, separator: layout.blockSeparator)
+        // Speaking times from the segments before the merge: a merged block
+        // spans the pauses inside it, which nobody was speaking through.
+        return TranscriptFrontMatter.prepend(frontMatter(forJobID: job.id, segments: labeled), to: body)
     }
 
     /// Stage 3 — persist the transcript + audio, run protocol generation
@@ -858,6 +865,15 @@ extension PipelineQueue {
         // opted out of a separate raw file: late speaker naming still needs to
         // rewrite it before generating the final protocol.
         let protocolsDir = outputDir.appendingPathComponent("protocols")
+        // A diarized transcript was rendered with its header already; one that
+        // skipped diarization is the raw stage-1 text and gets it here, so the
+        // layout holds whether or not speakers were identified.
+        let finalTranscript = TranscriptFrontMatter.hasFrontMatter(finalTranscript)
+            ? finalTranscript
+            : TranscriptFrontMatter.prepend(
+                frontMatter(forJobID: ctx.jobID, segments: transcription.cachedSegments ?? []),
+                to: finalTranscript,
+            )
         let txtPath = try ProtocolGenerator.saveTranscript(finalTranscript, basename: ctx.slug, dir: protocolsDir)
         logger.info("[\(ctx.shortID, privacy: .public)] transcript_saved file=\(txtPath.lastPathComponent, privacy: .private)")
 
@@ -948,6 +964,10 @@ extension PipelineQueue {
         guard let protocolGeneratorFactory, let generator = protocolGeneratorFactory() else {
             return
         }
+        // The model and the appendix get the spoken text; the YAML header is
+        // for the file. The preamble already tells the model the date and
+        // participants where they are authoritative.
+        let transcript = TranscriptFrontMatter.strip(transcript)
         let shortID = PipelineJob.shortID(for: jobID)
         // Reuse the basename fixed when the transcript was saved (persisted as
         // namingSlug), so the .md shares the .txt/audio stem exactly. This runs

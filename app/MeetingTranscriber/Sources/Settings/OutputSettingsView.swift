@@ -77,6 +77,22 @@ struct OutputSettingsView: View {
             }
             .accessibilityIdentifier(A11yID.outputFolderSection)
 
+            Section("Transcript") {
+                Picker("Layout", selection: $settings.transcriptLayout) {
+                    ForEach(TranscriptLayout.allCases, id: \.self) { layout in
+                        Text(layout.label).tag(layout)
+                    }
+                }
+                .accessibilityIdentifier(A11yID.transcriptLayoutPicker)
+                Text(
+                    "Readable keeps a speaker's turn as one paragraph and opens the file with a YAML header "
+                        + "(date, participants, speaking time). Applies to recordings processed after the change.",
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+            .recordOnlyDisabled(settings.recordOnly)
+
             Section("Protocol Generation") {
                 Toggle("Include full transcript in protocol", isOn: $settings.includeFullTranscriptInProtocol)
                     .accessibilityIdentifier(A11yID.includeFullTranscriptToggle)

@@ -50,9 +50,9 @@ extension [TimestampedSegment] {
     /// rides here for that same reason, and `note` has no default so a site
     /// with nothing to add says `nil` rather than forgets: applying it at each
     /// *write* site instead missed the mid-pipeline draft.
-    func transcriptText(note: String?) -> String {
+    func transcriptText(note: String?, separator: String = "\n") -> String {
         TranscriptNote.prepend(
-            note, to: filter { !$0.suppressed }.map(\.formattedLine).joined(separator: "\n"),
+            note, to: filter { !$0.suppressed }.map(\.formattedLine).joined(separator: separator),
         )
     }
 }

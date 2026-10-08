@@ -85,6 +85,19 @@ final class SettingsInteractionTests: XCTestCase {
         XCTAssertFalse(settings.includeFullTranscriptInProtocol)
     }
 
+    func testTranscriptLayoutPickerWritesBackToSettings() throws {
+        let settings = makeSettings()
+        settings.transcriptLayout = .compact
+        let view = OutputSettingsView(settings: settings)
+
+        let picker = try view.inspect()
+            .find(viewWithAccessibilityIdentifier: A11yID.transcriptLayoutPicker)
+            .find(ViewType.Picker.self)
+        try picker.select(value: TranscriptLayout.readable)
+
+        XCTAssertEqual(settings.transcriptLayout, .readable)
+    }
+
     func testSaveRawTranscriptToggleWritesBackToSettings() throws {
         let settings = makeSettings()
         settings.saveRawTranscriptSeparately = true

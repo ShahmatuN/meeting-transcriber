@@ -140,6 +140,7 @@
             XCTAssertEqual(s.output.directory, AppPaths.downloadsProtocolsDir.path)
             XCTAssertTrue(s.output.includeFullTranscriptInProtocol)
             XCTAssertTrue(s.output.saveRawTranscriptSeparately)
+            XCTAssertEqual(s.output.transcriptLayout, "compact")
         }
 
         func test_snapshot_output_resolvesCustomBookmark() throws {
@@ -254,6 +255,7 @@
                 "protocolGeneration.claudeBin",
                 "output.directory", "output.hasCustomDirectory", "output.hasCustomPrompt",
                 "output.includeFullTranscriptInProtocol", "output.saveRawTranscriptSeparately",
+                "output.transcriptLayout",
                 "diagnostics.verboseDiagnostics", "diagnostics.debugRPCEnabled",
                 "updates.checkForUpdates", "updates.includePreReleases",
             ]

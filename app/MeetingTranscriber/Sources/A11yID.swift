@@ -62,6 +62,7 @@ enum A11yID {
     static let transcriptionSection = "transcriptionSection"
     static let protocolSection = "protocolSection"
     static let includeFullTranscriptToggle = "includeFullTranscriptToggle"
+    static let transcriptLayoutPicker = "transcriptLayoutPicker"
     static let saveRawTranscriptToggle = "saveRawTranscriptToggle"
     static let outputFolderSection = "outputFolderSection"
     static let vadSection = "vadSection"

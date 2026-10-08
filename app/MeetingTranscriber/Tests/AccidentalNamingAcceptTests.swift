@@ -80,7 +80,7 @@ final class AccidentalNamingAcceptTests: XCTestCase {
 
         func renderLabeledTranscript(
             run _: DiarizationRun, cachedSegments _: [TimestampedSegment],
-            isDualSource _: Bool, autoNames _: [String: String], note _: String?,
+            isDualSource _: Bool, autoNames _: [String: String], job _: (id: UUID, note: String?),
         ) -> String? {
             nil
         }

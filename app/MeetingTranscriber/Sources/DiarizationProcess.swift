@@ -297,13 +297,14 @@ enum DiarizationProcess {
     /// Text is joined with spaces. A silence gap > `mergeGapThreshold` forces a break.
     static func mergeConsecutiveSpeakers(
         _ segments: [TimestampedSegment],
+        gapThreshold: TimeInterval = mergeGapThreshold,
     ) -> [TimestampedSegment] {
         guard var current = segments.first else { return [] }
 
         var merged: [TimestampedSegment] = []
         for seg in segments.dropFirst() {
             let silenceGap = seg.start - current.end
-            if seg.speaker == current.speaker, silenceGap <= mergeGapThreshold {
+            if seg.speaker == current.speaker, silenceGap <= gapThreshold {
                 // Extends the running block in place rather than rebuilding it,
                 // so fields the merge has no business changing stay what they
                 // were. Callers must drop suppressed segments before merging:

@@ -6,7 +6,8 @@ import Foundation
 /// (`[h:mm:ss]` past the hour). Consecutive lines by the same speaker are
 /// folded into one turn so the reader sees paragraphs rather than a log. A
 /// line that does not have that shape (a transcript note, a hand edit) is kept
-/// as a turn without speaker or timestamp, never dropped.
+/// as a turn without speaker or timestamp, never dropped. The YAML header a
+/// `.readable` transcript opens with is metadata, not speech, and is left out.
 struct TranscriptDocument: Equatable {
     struct Turn: Equatable, Identifiable {
         let id: Int
@@ -24,7 +25,7 @@ struct TranscriptDocument: Equatable {
 
     static func parse(_ text: String) -> Self {
         var turns: [Turn] = []
-        for rawLine in text.split(whereSeparator: \.isNewline) {
+        for rawLine in TranscriptFrontMatter.strip(text).split(whereSeparator: \.isNewline) {
             let line = rawLine.trimmingCharacters(in: .whitespaces)
             guard !line.isEmpty else { continue }
             if let match = line.firstMatch(of: /^\[(\d{1,2}(?::\d{2}){1,2})\]\s*([^:]{1,80}):\s?(.*)$/) {

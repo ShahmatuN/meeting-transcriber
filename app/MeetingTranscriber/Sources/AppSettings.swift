@@ -475,6 +475,12 @@ final class AppSettings {
     /// Append the verbatim transcript to generated Markdown meeting minutes.
     /// Defaults to `true` to preserve the output format used before this option
     /// was introduced.
+    /// How the saved `.txt` is laid out; see `TranscriptLayout`. Captured per
+    /// job at enqueue like the two options below.
+    var transcriptLayout: TranscriptLayout {
+        didSet { defaults.set(transcriptLayout.rawValue, forKey: "transcriptLayout") }
+    }
+
     var includeFullTranscriptInProtocol: Bool {
         didSet { defaults.set(includeFullTranscriptInProtocol, forKey: "includeFullTranscriptInProtocol") }
     }
@@ -660,6 +666,7 @@ final class AppSettings {
             claudeBin = defaults.object(forKey: "claudeBin") as? String ?? "claude"
         #endif
         protocolLanguage = defaults.string(forKey: "protocolLanguage") ?? "German"
+        transcriptLayout = defaults.string(forKey: "transcriptLayout").flatMap(TranscriptLayout.init(rawValue:)) ?? .compact
         includeFullTranscriptInProtocol = defaults.object(forKey: "includeFullTranscriptInProtocol") as? Bool ?? true
         saveRawTranscriptSeparately = defaults.object(forKey: "saveRawTranscriptSeparately") as? Bool ?? true
 

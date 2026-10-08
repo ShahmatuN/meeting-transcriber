@@ -448,10 +448,13 @@
                 let includeFullTranscriptInProtocol: Bool
                 /// Whether the completed job keeps a separate raw transcript file.
                 let saveRawTranscriptSeparately: Bool
+                /// `TranscriptLayout` raw value ("compact" | "readable").
+                let transcriptLayout: String
 
                 static let empty = Self(
                     directory: nil, hasCustomDirectory: false, hasCustomPrompt: false,
                     includeFullTranscriptInProtocol: false, saveRawTranscriptSeparately: false,
+                    transcriptLayout: "",
                 )
             }
 

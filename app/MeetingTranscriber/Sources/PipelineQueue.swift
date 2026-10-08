@@ -10,6 +10,7 @@ private let logger = Logger(subsystem: AppPaths.logSubsystem, category: "Pipelin
 struct TranscriptOutputOptions {
     let includeFullTranscriptInProtocol: Bool
     let saveRawTranscriptSeparately: Bool
+    var layout: TranscriptLayout = .compact
 }
 
 /// Raw diarization output for one run of the diarize loop. `combined` is the
@@ -388,6 +389,7 @@ class PipelineQueue {
         minimumRecoveredRecordingSeconds: TimeInterval = 0,
         includeFullTranscriptInProtocol: Bool = true,
         saveRawTranscriptSeparately: Bool = true,
+        transcriptLayout: TranscriptLayout = .compact,
         transcriptOutputOptionsProvider: (() -> TranscriptOutputOptions)? = nil,
         speakerMatcherFactory: @escaping () -> SpeakerMatcher = PipelineQueue.throwawayMatcherFactory(),
         snapshotWriter: @escaping @Sendable ([PipelineJob], URL) throws -> Void = PipelineSnapshot.save,
@@ -426,6 +428,7 @@ class PipelineQueue {
         let outputOptions = TranscriptOutputOptions(
             includeFullTranscriptInProtocol: includeFullTranscriptInProtocol,
             saveRawTranscriptSeparately: saveRawTranscriptSeparately,
+            layout: transcriptLayout,
         )
         fallbackTranscriptOutputOptions = outputOptions
         self.transcriptOutputOptionsProvider = transcriptOutputOptionsProvider ?? { outputOptions }
@@ -485,6 +488,7 @@ class PipelineQueue {
                 ?? fallbackTranscriptOutputOptions.includeFullTranscriptInProtocol,
             saveRawTranscriptSeparately: job.saveRawTranscriptSeparately
                 ?? fallbackTranscriptOutputOptions.saveRawTranscriptSeparately,
+            layout: job.transcriptLayout ?? fallbackTranscriptOutputOptions.layout,
         )
     }
 
@@ -498,6 +502,9 @@ class PipelineQueue {
         }
         if job.saveRawTranscriptSeparately == nil {
             job.saveRawTranscriptSeparately = outputOptions.saveRawTranscriptSeparately
+        }
+        if job.transcriptLayout == nil {
+            job.transcriptLayout = outputOptions.layout
         }
     }
 
