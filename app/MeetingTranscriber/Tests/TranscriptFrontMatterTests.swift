@@ -9,7 +9,7 @@ final class TranscriptFrontMatterTests: XCTestCase {
     private func facts() -> TranscriptFrontMatter.Facts {
         TranscriptFrontMatter.Facts(
             title: "Evgeniy - Kirill: sync",
-            start: Date(timeIntervalSince1970: 1_790_000_000), // 2026-09-21 09:33:20 UTC
+            start: Date(timeIntervalSince1970: 1_790_000_000), // 2026-09-21 14:13:20 UTC
             durationSeconds: 3727,
             appName: "Microsoft Teams",
             participants: ["Kirill \"K\" M.", "Zlata"],
@@ -26,8 +26,8 @@ final class TranscriptFrontMatterTests: XCTestCase {
         ---
         title: "Evgeniy - Kirill: sync"
         date: 2026-09-21
-        start: "09:33"
-        end: "10:35"
+        start: "14:13"
+        end: "15:15"
         duration: "1:02:07"
         app: "Microsoft Teams"
         participants: ["Kirill \\"K\\" M.", "Zlata"]
