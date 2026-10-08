@@ -128,4 +128,23 @@ final class TerminologyNormalizerTests: XCTestCase {
         XCTAssertTrue(normalizer.isEmpty)
         XCTAssertEqual(normalizer.diagnostics.ignoredLineCount, 1)
     }
+
+    /// The segment pass rewrites `text` and nothing else. A memberwise rebuild
+    /// here once reset `suppressed`, so the echo-bleed copies the classifier
+    /// had marked came back into the transcript (issue #581).
+    func testNormalizingASegmentKeepsEverySegmentFieldButText() {
+        let normalizer = TerminologyNormalizer(rulesText: "Aster => Astor")
+        let segment = TimestampedSegment(
+            start: 12.5, end: 15.25, text: "Astor spricht.", speaker: "M_SPEAKER_01", suppressed: true,
+        )
+
+        let normalized = segment.normalized(with: normalizer)
+
+        XCTAssertEqual(normalized.text, "Aster spricht.")
+        XCTAssertEqual(normalized.start, 12.5)
+        XCTAssertEqual(normalized.end, 15.25)
+        XCTAssertEqual(normalized.speaker, "M_SPEAKER_01")
+        XCTAssertTrue(normalized.suppressed)
+        XCTAssertEqual([segment, normalized].transcriptText(note: nil), "")
+    }
 }
