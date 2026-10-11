@@ -100,6 +100,14 @@ struct SpeakersSettingsView: View {
             )
             .font(.caption)
             .foregroundStyle(.secondary)
+            Toggle("Ask to name speakers after each meeting", isOn: $settings.askToNameSpeakers)
+                .accessibilityIdentifier(A11yID.askToNameSpeakersToggle)
+            Text(
+                "Off: the transcript keeps the recognized voices, your mic name and the invited participants, "
+                    + "and unknown speakers stay as labels.",
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
         }
     }
 

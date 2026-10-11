@@ -820,6 +820,9 @@ fi
 # default), so the dev build keeps everything for the run. Cleared again in
 # the exit trap so the next launch on this host starts from the default.
 _set_dev_default minimumAutoRecordingSeconds 0 float
+# A real install finishes diarized meetings on their auto-names; the lanes
+# drive the naming dialog and its RPC, which only exist while it is asked for.
+_set_dev_default askToNameSpeakers true bool
 
 # --- speaker-DB snapshot/restore (naming-confirm lane, CI ONLY) -----------
 #
@@ -1140,6 +1143,7 @@ on_exit() {
         _delete_dev_default diarizerMode
     fi
     _delete_dev_default minimumAutoRecordingSeconds
+    _delete_dev_default askToNameSpeakers
     # Crash-recovery: remove only THIS run's recording artifacts (the exact
     # stem we created). Stem-targeted, so it never touches pre-existing user
     # recordings. See feedback memory `no_destructive_fs_on_real_dirs`.

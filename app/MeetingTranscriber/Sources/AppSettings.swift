@@ -297,6 +297,14 @@ final class AppSettings {
         didSet { defaults.set(micName, forKey: "micName") }
     }
 
+    /// When false (default), a diarized meeting finishes on its auto-assigned
+    /// names (voice matches, the pinned mic name, calendar/roster participants)
+    /// without parking for the "Name Speakers" dialog, exactly as a Skip would.
+    /// True restores the dialog after every diarized meeting.
+    var askToNameSpeakers: Bool {
+        didSet { defaults.set(askToNameSpeakers, forKey: "askToNameSpeakers") }
+    }
+
     // MARK: - Transcription
 
     var transcriptionEngine: TranscriptionEngineSetting {
@@ -624,6 +632,7 @@ final class AppSettings {
         recordOnly = defaults.object(forKey: "recordOnly") as? Bool ?? false
         micDeviceUID = defaults.object(forKey: "micDeviceUID") as? String ?? ""
         micName = defaults.object(forKey: "micName") as? String ?? "Me"
+        askToNameSpeakers = defaults.object(forKey: "askToNameSpeakers") as? Bool ?? false
         perChannelIndicatorEnabled = defaults.object(forKey: "perChannelIndicatorEnabled") as? Bool ?? true
         liveTranscriptionEnabled = defaults.object(forKey: "liveTranscriptionEnabled") as? Bool ?? false
         liveCaptionsOverlayEnabled = defaults.object(forKey: "liveCaptionsOverlayEnabled") as? Bool ?? true

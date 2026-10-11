@@ -111,6 +111,28 @@ final class SettingsInteractionTests: XCTestCase {
         XCTAssertFalse(settings.saveRawTranscriptSeparately)
     }
 
+    // MARK: - Speaker naming toggle
+
+    func testAskToNameSpeakersToggleWritesBackToSettings() throws {
+        let settings = makeSettings()
+        XCTAssertFalse(settings.askToNameSpeakers, "the dialog is off by default")
+        let view = SpeakersSettingsView(
+            settings: settings,
+            recognitionStatsLog: RecognitionStatsLog(),
+            stageTimingLog: StageTimingLog(),
+            enrollmentDiarizerFactory: nil,
+            namingDialogActive: false,
+            pipelineBusy: false,
+        )
+
+        let toggle = try view.inspect()
+            .find(viewWithAccessibilityIdentifier: A11yID.askToNameSpeakersToggle)
+            .find(ViewType.Toggle.self)
+        try toggle.tap()
+
+        XCTAssertTrue(settings.askToNameSpeakers)
+    }
+
     // MARK: - Stepper write-back
 
     func testPollIntervalStepperIncrementsSetting() throws {

@@ -387,6 +387,7 @@ class PipelineQueue {
         numSpeakers: Int = 0,
         micLabel: String = "Me",
         minimumRecoveredRecordingSeconds: TimeInterval = 0,
+        askToNameSpeakers: @escaping () -> Bool = { true },
         includeFullTranscriptInProtocol: Bool = true,
         saveRawTranscriptSeparately: Bool = true,
         transcriptLayout: TranscriptLayout = .compact,
@@ -448,6 +449,7 @@ class PipelineQueue {
             diarizationFactoryWithMode: diarizationFactoryWithMode,
             protocolGeneratorFactory: protocolGeneratorFactory,
             outputDir: outputDir,
+            asksToNameSpeakers: askToNameSpeakers,
             recognitionStatsLog: recognitionStatsLog,
         )
         naming.delegate = self

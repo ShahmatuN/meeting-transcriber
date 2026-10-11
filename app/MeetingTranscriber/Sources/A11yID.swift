@@ -80,6 +80,7 @@ enum A11yID {
     /// only entry: a plain, non-secret text field whose write-back is readable in
     /// `/state`, which is what makes it a usable text-entry probe.
     static let micNameField = "micNameField"
+    static let askToNameSpeakersToggle = "askToNameSpeakersToggle"
     static let customVocabularyPathField = "customVocabularyPathField"
     static let whisperKitVocabularyPromptToggle = "whisperKitVocabularyPromptToggle"
     static let terminologyRulesEditor = "terminologyRulesEditor"

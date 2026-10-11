@@ -99,12 +99,15 @@ extension PipelineQueue {
 
         saveSnapshot()
         cleanupStalePending()
+        naming.resolvePendingWithoutDialog(pendingJobs: pendingSpeakerNamingJobs)
         logger.info("Restored \(loaded.count) jobs from snapshot")
         triggerProcessing()
         // Auto-popup the naming dialog if any restored job is still
         // waiting for confirmation. Same notification as the in-pipeline
         // pop, so MeetingTranscriberApp brings the window forward.
-        if !pendingSpeakerNamingJobs.isEmpty {
+        // Not with the dialog off: the jobs resolved above can still read as
+        // pending until their protocol run starts.
+        if naming.asksToNameSpeakers(), !pendingSpeakerNamingJobs.isEmpty {
             NotificationCenter.default.post(name: .showSpeakerNaming, object: nil)
         }
     }

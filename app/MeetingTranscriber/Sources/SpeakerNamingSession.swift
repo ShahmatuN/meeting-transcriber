@@ -97,6 +97,9 @@ final class SpeakerNamingSession {
     let diarizationFactoryWithMode: ((DiarizerMode) -> any DiarizationProvider)?
     let protocolGeneratorFactory: (() -> (any ProtocolGenerating)?)?
     let outputDir: URL?
+    /// `AppSettings.askToNameSpeakers`, read live. False finishes every
+    /// diarized job on its auto-names, the way `autoSkipNaming` does for one.
+    let asksToNameSpeakers: () -> Bool
     /// nil disables JSONL logging. AppState injects a real instance for
     /// production; tests leave it nil unless they explicitly assert on the log.
     let recognitionStatsLog: RecognitionStatsLog?
@@ -124,6 +127,7 @@ final class SpeakerNamingSession {
         diarizationFactoryWithMode: ((DiarizerMode) -> any DiarizationProvider)? = nil,
         protocolGeneratorFactory: (() -> (any ProtocolGenerating)?)? = nil,
         outputDir: URL? = nil,
+        asksToNameSpeakers: @escaping () -> Bool = { true },
         recognitionStatsLog: RecognitionStatsLog? = nil,
     ) {
         self.namingStore = namingStore
@@ -132,7 +136,24 @@ final class SpeakerNamingSession {
         self.diarizationFactoryWithMode = diarizationFactoryWithMode
         self.protocolGeneratorFactory = protocolGeneratorFactory
         self.outputDir = outputDir
+        self.asksToNameSpeakers = asksToNameSpeakers
         self.recognitionStatsLog = recognitionStatsLog
+    }
+
+    /// Whether this job's names are settled without the dialog: a headless
+    /// blocking-transcribe job, or any job once the user turned the dialog off.
+    func resolvesWithoutDialog(jobID: UUID) -> Bool {
+        delegate?.job(withID: jobID)?.autoSkipNaming == true || !asksToNameSpeakers()
+    }
+
+    /// Accept the auto-names for every job still parked for naming, as a Skip
+    /// would. For jobs parked before the dialog was turned off, so a restore
+    /// does not reopen it. No-op while the dialog is on.
+    func resolvePendingWithoutDialog(pendingJobs: [PipelineJob]) {
+        guard !asksToNameSpeakers() else { return }
+        for job in pendingJobs where speakerNamingDataByJob[job.id] != nil {
+            completeSpeakerNaming(jobID: job.id, result: .skipped, source: .headless)
+        }
     }
 
     // MARK: - Completion
@@ -337,34 +358,38 @@ final class SpeakerNamingSession {
             isDualSource: isDualSource,
         )
 
-        // Persist naming data and set slug + mode early.
-        saveNamingData(namingData, slug: slug)
         delegate?.setNamingMetadata(jobID: jobID, slug: slug, usedDiarizerMode: diarizeProcess.mode)
         delegate?.namingStageDidEnd()
+
+        if resolvesWithoutDialog(jobID: jobID) {
+            // Headless blocking-transcribe, or the dialog turned off: accept
+            // the auto-assigned names (exactly like a `.skipped` dialog result)
+            // so the job finishes on its own. Nothing is stashed or saved:
+            // there is no one to resolve it, and parking would wedge the job
+            // until the next launch's 24h stale-cleanup. Stage 3 drops the
+            // re-diarization audio it would otherwise keep for the dialog.
+            //
+            // Log it as a resolution like every other path, tagged `.headless`:
+            // the names still land in the transcript, so leaving no row would
+            // hide an auto-accept nobody reviewed.
+            stashedTopCandidates[jobID] = topCandidates
+            recordRecognition(
+                jobID: jobID, title: title,
+                userMapping: nil, fallback: autoNames,
+                source: .headless,
+            )
+            stashedTopCandidates.removeValue(forKey: jobID)
+            return autoNames
+        }
+
+        // Persist naming data for the (possibly late) dialog.
+        saveNamingData(namingData, slug: slug)
 
         // Stash recognition forensics so the late-confirm path can write the
         // JSONL row when the user actually confirms (possibly later, via the
         // re-openable dialog).
         stashedSuggestedAtDialog[jobID] = suggestedAtDialog
         stashedTopCandidates[jobID] = topCandidates
-
-        if delegate?.job(withID: jobID)?.autoSkipNaming == true {
-            // Headless blocking-transcribe: accept the auto-assigned names
-            // (exactly like a `.skipped` dialog result) so the job finishes on
-            // its own. Don't stash naming data: there is no interactive client
-            // to resolve it, and parking would wedge the job until the next
-            // launch's 24h stale-cleanup.
-            //
-            // Log it as a resolution like every other path, tagged `.headless`:
-            // the names still land in the transcript, so leaving no row would
-            // hide an auto-accept nobody reviewed.
-            recordRecognition(
-                jobID: jobID, title: title,
-                userMapping: nil, fallback: autoNames,
-                source: .headless,
-            )
-            return autoNames
-        }
         // Production/interactive: stash the naming data so the queue parks the
         // job at `.speakerNamingPending` and pops the (re-openable) dialog. The
         // pipeline continues with the auto-names; the dialog confirms later via

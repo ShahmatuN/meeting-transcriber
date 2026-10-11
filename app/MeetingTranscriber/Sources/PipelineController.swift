@@ -125,6 +125,7 @@ final class PipelineController {
             numSpeakers: settings.numSpeakers,
             micLabel: settings.micName,
             minimumRecoveredRecordingSeconds: settings.minimumAutoRecordingSeconds,
+            askToNameSpeakers: { [settings] in settings.askToNameSpeakers },
             includeFullTranscriptInProtocol: settings.includeFullTranscriptInProtocol,
             saveRawTranscriptSeparately: settings.saveRawTranscriptSeparately,
             transcriptLayout: settings.transcriptLayout,

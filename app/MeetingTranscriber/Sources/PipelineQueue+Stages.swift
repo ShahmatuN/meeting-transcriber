@@ -947,6 +947,11 @@ extension PipelineQueue {
             // (the session) strongly for the op duration, never the delegate.
             naming.invokeHandler(jobID: ctx.jobID, data: namingData)
         } else {
+            if naming.resolvesWithoutDialog(jobID: ctx.jobID) {
+                // The 16 kHz audio and segments above exist only for the
+                // dialog's late re-run; with no dialog nothing reads them.
+                naming.removeNamingData(jobID: ctx.jobID, slug: ctx.slug)
+            }
             updateJobState(id: ctx.jobID, to: .done)
         }
     }
