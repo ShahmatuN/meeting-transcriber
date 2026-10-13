@@ -372,6 +372,17 @@ final class SpeakerNamingSession {
             // Log it as a resolution like every other path, tagged `.headless`:
             // the names still land in the transcript, so leaving no row would
             // hide an auto-accept nobody reviewed.
+            //
+            // With the dialog off (not for a headless API job, which must not
+            // write to the voice DB) a single leftover participant names the
+            // speaker nobody recognised, and that voice is learned.
+            if delegate?.job(withID: jobID)?.autoSkipNaming != true {
+                autoNames = applyElimination(
+                    to: autoNames, matched: matched, diarization: diarization,
+                    job: (id: jobID, participants: participants, isDualSource: isDualSource),
+                    matcher: matcher,
+                )
+            }
             stashedTopCandidates[jobID] = topCandidates
             recordRecognition(
                 jobID: jobID, title: title,

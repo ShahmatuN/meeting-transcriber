@@ -40,6 +40,67 @@ final class NamingDialogOffTests: XCTestCase {
         )
     }
 
+    /// A queue whose diarizer returns one 40 s voice nobody is enrolled for,
+    /// over a voice DB in the test's own folder.
+    private func makeLearningQueue(dbPath: URL) -> PipelineQueue {
+        let engine = MockEngine()
+        engine.segmentsToReturn = [TimestampedSegment(start: 0, end: 5, text: "Hello")]
+        let diarization = MockDiarization()
+        diarization.resultToReturn = DiarizationResult(
+            segments: [.init(start: 0, end: 40, speaker: "SPEAKER_0")],
+            speakingTimes: ["SPEAKER_0": 40],
+            autoNames: [:],
+            embeddings: ["SPEAKER_0": [1, 0, 0]],
+        )
+        let askSetting: () -> Bool = { false }
+        let matcherFactory: () -> SpeakerMatcher = { SpeakerMatcher(dbPath: dbPath) }
+        return PipelineQueue(
+            engine: engine,
+            diarizationFactory: { diarization },
+            protocolGeneratorFactory: { MockProtocolGen() },
+            outputDir: tmpDir,
+            logDir: tmpDir,
+            diarizeEnabled: true,
+            askToNameSpeakers: askSetting,
+            speakerMatcherFactory: matcherFactory,
+        )
+    }
+
+    /// One invitee and one unknown voice: the voice is named after the
+    /// invitee in the transcript and stored, so the next meeting matches it.
+    func testSoleLeftoverParticipantIsLearned() async throws {
+        let dbPath = tmpDir.appendingPathComponent("speakers.json")
+        let queue = makeLearningQueue(dbPath: dbPath)
+        let job = try PipelineJob(
+            meetingTitle: "One to One", appName: "Chrome",
+            mixPath: createTestAudioFile(in: tmpDir), appPath: nil, micPath: nil, micDelay: 0,
+            participants: ["maksim"],
+        )
+        queue.enqueue(job)
+        await queue.processNext()
+
+        XCTAssertEqual(queue.jobs.first?.state, .done)
+        XCTAssertEqual(SpeakerMatcher(dbPath: dbPath).allSpeakerNames(), ["maksim"])
+        let transcript = try XCTUnwrap(queue.jobs.first?.transcriptPath)
+        XCTAssertTrue(try String(contentsOf: transcript, encoding: .utf8).contains("maksim:"))
+    }
+
+    /// A headless API job resolves the same way but never writes the voice DB.
+    func testHeadlessJobDoesNotLearn() async throws {
+        let dbPath = tmpDir.appendingPathComponent("speakers.json")
+        let queue = makeLearningQueue(dbPath: dbPath)
+        let job = try PipelineJob(
+            meetingTitle: "One to One", appName: "Chrome",
+            mixPath: createTestAudioFile(in: tmpDir), appPath: nil, micPath: nil, micDelay: 0,
+            participants: ["maksim"], autoSkipNaming: true,
+        )
+        queue.enqueue(job)
+        await queue.processNext()
+
+        XCTAssertEqual(queue.jobs.first?.state, .done)
+        XCTAssertTrue(SpeakerMatcher(dbPath: dbPath).allSpeakerNames().isEmpty)
+    }
+
     private func recordingFiles() -> [String] {
         let dir = tmpDir.appendingPathComponent("recordings")
         return (try? FileManager.default.contentsOfDirectory(atPath: dir.path)) ?? []
