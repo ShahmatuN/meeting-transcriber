@@ -52,6 +52,12 @@ final class PipelineController {
     /// user actions while `AppState` is alive). Captures the owner weakly.
     private var engineProvider: (() -> (any TranscribingEngine)?)?
 
+    #if !APPSTORE
+        /// Runs `AppSettings.postJobCommand` after each finished job. Settable
+        /// so tests can watch what would run.
+        @ObservationIgnored var postJobHook: any PostJobHookRunning = PostJobHookRunner()
+    #endif
+
     init(settings: AppSettings, notifier: any AppNotifying, terminalJobStore: TerminalJobStore? = nil) {
         self.settings = settings
         self.notifier = notifier
@@ -220,11 +226,14 @@ final class PipelineController {
     }
 
     func configureCallbacks() {
-        queue.onJobStateChange = { [notifier] job, _, newState in
+        queue.onJobStateChange = { [weak self, notifier] job, _, newState in
             switch newState {
             case .done:
                 let title = job.protocolPath != nil ? "Protocol Ready" : "Transcript Saved"
                 notifier.notify(title: title, body: job.meetingTitle)
+                #if !APPSTORE
+                    self?.runPostJobHook(for: job)
+                #endif
 
             case .error:
                 if let err = job.error {
@@ -437,3 +446,36 @@ enum BlockingTranscribeResult {
         }
     }
 }
+
+#if !APPSTORE
+    extension PipelineController {
+        /// Hand a finished job to the user's command, if one is set, and tell
+        /// the user how it went. Not awaited: the queue moves on meanwhile, and
+        /// the runner keeps the commands themselves in finishing order.
+        func runPostJobHook(for job: PipelineJob) {
+            let command = settings.postJobCommand.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !command.isEmpty, let environment = PostJobHook.environment(for: job) else { return }
+            let hook = postJobHook
+            let notifier = notifier
+            let title = job.meetingTitle
+            Task {
+                switch await hook.run(command: command, environment: environment) {
+                case let .succeeded(summary):
+                    notifier.notify(title: "After-meeting command finished", body: summary ?? title)
+
+                case let .failed(status, summary):
+                    notifier.notify(
+                        title: "After-meeting command failed",
+                        body: summary ?? "\(title): exit status \(status)",
+                    )
+
+                case .timedOut:
+                    notifier.notify(title: "After-meeting command timed out", body: title)
+
+                case let .couldNotStart(reason):
+                    notifier.notify(title: "After-meeting command did not start", body: reason)
+                }
+            }
+        }
+    }
+#endif

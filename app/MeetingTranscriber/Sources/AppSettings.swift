@@ -305,6 +305,12 @@ final class AppSettings {
         didSet { defaults.set(askToNameSpeakers, forKey: "askToNameSpeakers") }
     }
 
+    /// Shell command run after every finished meeting (`PostJobHook`, Homebrew
+    /// build only). Empty runs nothing.
+    var postJobCommand: String {
+        didSet { defaults.set(postJobCommand, forKey: "postJobCommand") }
+    }
+
     // MARK: - Transcription
 
     var transcriptionEngine: TranscriptionEngineSetting {
@@ -633,6 +639,7 @@ final class AppSettings {
         micDeviceUID = defaults.object(forKey: "micDeviceUID") as? String ?? ""
         micName = defaults.object(forKey: "micName") as? String ?? "Me"
         askToNameSpeakers = defaults.object(forKey: "askToNameSpeakers") as? Bool ?? false
+        postJobCommand = defaults.string(forKey: "postJobCommand") ?? ""
         perChannelIndicatorEnabled = defaults.object(forKey: "perChannelIndicatorEnabled") as? Bool ?? true
         liveTranscriptionEnabled = defaults.object(forKey: "liveTranscriptionEnabled") as? Bool ?? false
         liveCaptionsOverlayEnabled = defaults.object(forKey: "liveCaptionsOverlayEnabled") as? Bool ?? true

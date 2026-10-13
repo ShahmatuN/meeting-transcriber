@@ -133,6 +133,20 @@ final class SettingsInteractionTests: XCTestCase {
         XCTAssertTrue(settings.askToNameSpeakers)
     }
 
+    #if !APPSTORE
+        func testPostJobCommandFieldWritesBackToSettings() throws {
+            let settings = makeSettings()
+            let view = OutputSettingsView(settings: settings)
+
+            try view.inspect()
+                .find(viewWithAccessibilityIdentifier: A11yID.postJobCommandField)
+                .find(ViewType.TextField.self)
+                .setInput("/x/to-wiki.py")
+
+            XCTAssertEqual(settings.postJobCommand, "/x/to-wiki.py")
+        }
+    #endif
+
     // MARK: - Stepper write-back
 
     func testPollIntervalStepperIncrementsSetting() throws {

@@ -93,6 +93,10 @@ struct OutputSettingsView: View {
             }
             .recordOnlyDisabled(settings.recordOnly)
 
+            #if !APPSTORE
+                afterEachMeetingSection
+            #endif
+
             Section("Protocol Generation") {
                 Toggle("Include full transcript in protocol", isOn: $settings.includeFullTranscriptInProtocol)
                     .accessibilityIdentifier(A11yID.includeFullTranscriptToggle)
@@ -370,3 +374,22 @@ struct OutputSettingsView: View {
         settings.setCustomOutputDir(url)
     }
 }
+
+#if !APPSTORE
+    extension OutputSettingsView {
+        var afterEachMeetingSection: some View {
+            Section("After Each Meeting") {
+                TextField("Command", text: $settings.postJobCommand, prompt: Text("/path/to/script.sh"))
+                    .accessibilityIdentifier(A11yID.postJobCommandField)
+                Text(
+                    "Runs in your login shell once a transcript is saved, one meeting at a time. It receives "
+                        + "MT_TRANSCRIPT, MT_PROTOCOL, MT_TITLE, MT_DATE, MT_START, MT_APP, MT_JOB_ID and "
+                        + "MT_PARTICIPANTS (one per line). Its last output line is shown in the notification.",
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+            .recordOnlyDisabled(settings.recordOnly)
+        }
+    }
+#endif
