@@ -55,9 +55,14 @@ run "Product/Wallet: sync" "$(printf 'a.toporov\nEvgeniy Zhiltsov\nИрина Р
     || fail "group name: $(ls "$WIKI/raw")"
 PASSED=$((PASSED + 1))
 
-# Nobody named: filed under the owner's full name with the title.
-run "Weekly Sync Metrics" "" "$TMPD/claude-ok" > /dev/null
+# Nobody named: filed under the owner's full name with the title, and only
+# then may the model rename the file.
+out="$(run "Weekly Sync Metrics" "" "$TMPD/claude-ok")"
 [ -f "$WIKI/raw/2026-10-13 Evgeniy Zhiltsov - Weekly Sync Metrics.md" ] || fail "solo name: $(ls "$WIKI/raw")"
+printf '%s' "$out" | grep -q "Bash(mv:\*)" || fail "no rename tool without participants: $out"
+PASSED=$((PASSED + 1))
+out="$(run "Maksim / Evgeniy" "k.markidonov" "$TMPD/claude-ok")"
+printf '%s' "$out" | grep -q "Bash(mv:\*)" && fail "rename tool granted with participants known"
 PASSED=$((PASSED + 1))
 
 # Claude failing still leaves the transcript in raw/, and says so.

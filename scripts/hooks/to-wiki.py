@@ -30,6 +30,8 @@ from pathlib import Path
 
 CLAUDE_TIMEOUT_SECONDS = 25 * 60
 ALLOWED_TOOLS = "Read Write Edit Glob Grep Bash(ls:*) Bash(wc:*) Bash(head:*) Bash(date:*)"
+# Only granted when the name was built without participants, see prompt_for.
+RENAME_TOOL = "Bash(mv:*)"
 
 
 def surname(participant: str) -> str:
@@ -89,10 +91,20 @@ def find_claude() -> str:
     return str(fallback) if fallback.exists() else ""
 
 
-def prompt_for(relative: str) -> str:
+def prompt_for(relative: str, may_rename: bool) -> str:
+    """With no participants known the name carries only the app's title (often
+    a bare `Google Meet abc-defg-hij`), so the model, which has read the
+    transcript, may rename the file by the convention. Content stays as is."""
+    rename = (
+        "Участники встречи приложению неизвестны, поэтому имя файла собрано из названия окна. "
+        "Если по содержанию понятны участники или тема, переименуй файл через `mv` по конвенции "
+        "`raw/` из скилла (не перезаписывая существующий файл) и дальше работай с новым именем. "
+        if may_rename else ""
+    )
     return (
         f"Новый транскрипт встречи уже сохранён байт-в-байт в `{relative}`: фаза 1 скилла "
-        "meeting-to-wiki выполнена, этот файл не меняй, кроме маркера processed в фазе 3. "
+        "meeting-to-wiki выполнена, содержимое этого файла не меняй, кроме маркера processed в фазе 3. "
+        + rename +
         "Выполни по скиллу meeting-to-wiki фазы 2 и 3 для этого файла. Пользователя рядом нет: "
         "ничего не спрашивай, решения, принятые за пользователя, перечисли в отчёте. "
         "Последней строкой ответа выведи одну строку, которая начинается с «ИТОГ:», "
@@ -119,9 +131,9 @@ def main() -> int:
         return fail(f"to-wiki: {wiki_dir} has no AGENTS.md or raw/")
 
     participants = [p for p in os.environ.get("MT_PARTICIPANTS", "").splitlines() if p.strip()]
-    stem = raw_name(
-        os.environ.get("MT_DATE", ""), owner, participants, os.environ.get("MT_TITLE", ""),
-    )
+    date = os.environ.get("MT_DATE", "")
+    stem = raw_name(date, owner, participants, os.environ.get("MT_TITLE", ""))
+    may_rename = stem.startswith(f"{date} {owner} - ")
     target = unique_path(raw_dir, stem)
     shutil.copyfile(transcript, target)
     if target.stat().st_size != Path(transcript).stat().st_size:
@@ -137,8 +149,9 @@ def main() -> int:
         return fail(f"{relative} saved, wiki not processed: claude not found")
     try:
         result = subprocess.run(
-            [claude, "-p", prompt_for(relative),
-             "--permission-mode", "acceptEdits", "--allowedTools", ALLOWED_TOOLS],
+            [claude, "-p", prompt_for(relative, may_rename),
+             "--permission-mode", "acceptEdits",
+             "--allowedTools", f"{ALLOWED_TOOLS} {RENAME_TOOL}" if may_rename else ALLOWED_TOOLS],
             cwd=wiki_dir, capture_output=True, text=True, timeout=CLAUDE_TIMEOUT_SECONDS,
             stdin=subprocess.DEVNULL, check=False,
         )
