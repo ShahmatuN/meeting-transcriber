@@ -55,6 +55,28 @@ final class GeneralSettingsCalendarTests: XCTestCase {
         XCTAssertEqual(settings.calendarIDs, ["a"], "unchecking B leaves the explicit set {A}")
     }
 
+    func testAnUndeterminedGrantWarnsAndItsButtonAsksForAccess() async throws {
+        let settings = try makeSettings()
+        settings.calendarIntegrationEnabled = true
+        let source = FakeCalendarSource()
+        // A dismissed prompt leaves the grant undetermined, which is the state
+        // the warning is for; otherwise launch alone would resolve it.
+        source.grantOnRequest = .notDetermined
+        let controller = CalendarController(settings: settings, source: source)
+        await controller.activation?.value
+        XCTAssertEqual(source.requestCount, 1, "launch asked once")
+        let view = GeneralSettingsView(settings: settings, notificationVisibility: nil, calendar: controller)
+
+        XCTAssertNoThrow(try view.inspect().find(text: "Calendar access has not been granted yet."))
+        try view.inspect()
+            .find(viewWithAccessibilityIdentifier: A11yID.calendarRequestAccessButton)
+            .find(ViewType.Button.self)
+            .tap()
+        await controller.activation?.value
+
+        XCTAssertEqual(source.requestCount, 2, "the button asks again")
+    }
+
     func testADeniedGrantIsExplainedInTheSection() throws {
         let settings = try makeSettings()
         settings.calendarIntegrationEnabled = true

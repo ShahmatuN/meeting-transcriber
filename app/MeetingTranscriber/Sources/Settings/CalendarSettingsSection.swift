@@ -20,7 +20,7 @@ struct CalendarSettingsSection: View {
                     get: { settings.calendarIntegrationEnabled },
                     set: { newValue in
                         settings.calendarIntegrationEnabled = newValue
-                        if newValue { Task { await calendar.activate() } }
+                        if newValue { calendar.activateInBackground() }
                     },
                 ),
             )
@@ -49,31 +49,49 @@ struct CalendarSettingsSection: View {
             EmptyView()
 
         case .notDetermined:
-            Text("Calendar access has not been granted yet.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            // A warning, not a caption: the switch is on and nothing works.
+            // This is the state a bundle-identifier change leaves behind, and
+            // for a week it read as a quiet grey line nobody looked at.
+            accessWarning(
+                headline: "Calendar access has not been granted yet.",
+                button: "Request Calendar Access",
+                identifier: A11yID.calendarRequestAccessButton,
+            ) {
+                calendar.activateInBackground()
+            }
 
         case .denied, .writeOnly:
-            Label {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Calendar access is \(calendar.authorization == .writeOnly ? "write-only" : "denied").")
-                        .font(.callout.weight(.semibold))
-                    Text("Recordings fall back to the window title until Full Access is granted.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Button("Open Calendar Privacy Settings") {
-                        NSWorkspace.shared.open(Self.calendarPrivacyURL)
-                    }
+            accessWarning(
+                headline: "Calendar access is \(calendar.authorization == .writeOnly ? "write-only" : "denied").",
+                button: "Open Calendar Privacy Settings",
+                identifier: A11yID.calendarPrivacySettingsButton,
+            ) {
+                NSWorkspace.shared.open(Self.calendarPrivacyURL)
+            }
+        }
+    }
+
+    private func accessWarning(
+        headline: String, button: String, identifier: String, action: @escaping () -> Void,
+    ) -> some View {
+        Label {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(headline)
+                    .font(.callout.weight(.semibold))
+                Text("Meetings are not matched to calendar events until Full Access is granted.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Button(button, action: action)
                     .buttonStyle(.link)
                     .font(.caption)
-                }
-            } icon: {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundStyle(.orange)
+                    .accessibilityIdentifier(identifier)
             }
-            .padding(8)
-            .background(Color.orange.opacity(0.10), in: RoundedRectangle(cornerRadius: 6))
+        } icon: {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.orange)
         }
+        .padding(8)
+        .background(Color.orange.opacity(0.10), in: RoundedRectangle(cornerRadius: 6))
     }
 
     /// Checklist of the account's calendars. Rows are addressed by index in

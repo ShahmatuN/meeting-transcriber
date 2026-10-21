@@ -22,6 +22,10 @@ final class CalendarController {
     private(set) var availableCalendars: [CalendarInfo] = []
     /// The event the last `scheduledMeeting(at:)` call matched, for `/state`.
     private(set) var lastMatchedEventID: String?
+    /// The access request currently running, started by the launch check,
+    /// the Settings switch or the "Request Calendar Access" button. Exposed so
+    /// a test can await the request instead of sleeping for it.
+    private(set) var activation: Task<Void, Never>?
 
     /// How far either side of "now" the event query reaches. Generous because
     /// the matcher applies the real window (`leadIn`/`tail`); this only has to
@@ -29,12 +33,24 @@ final class CalendarController {
     /// ago is still happening.
     static let queryHalfWidth: TimeInterval = 4 * 3600
 
+    /// With the integration on and the grant not yet determined, launch asks
+    /// macOS for access right away. The grant is keyed on the bundle
+    /// identifier, so a bundle-identifier change (the 0.8.1 migration) took it
+    /// back to not-determined while the switch stayed on; only the switch asked,
+    /// and matching answered nothing for a week without a word anywhere. A
+    /// denied grant is not re-asked here: macOS would not prompt for it, and
+    /// Settings explains it next to the switch. The request is left running
+    /// (`activation`) rather than awaited: this is a synchronous composition
+    /// root and the prompt must not hold up the rest of launch.
     init(settings: AppSettings, source: any CalendarEventSource) {
         self.settings = settings
         self.source = source
         self.authorization = source.authorization
         source.onChange = { [weak self] in self?.refresh() }
-        if settings.calendarIntegrationEnabled { refresh() }
+        if settings.calendarIntegrationEnabled {
+            refresh()
+            if authorization == .notDetermined { activateInBackground() }
+        }
     }
 
     var isEnabled: Bool {
@@ -59,6 +75,17 @@ final class CalendarController {
             logger.info("Calendar access requested, granted=\(granted, privacy: .public)")
         }
         refresh()
+    }
+
+    /// `activate()` without waiting for it, for callers that cannot await: the
+    /// initializer and the Settings controls. One request at a time; a second
+    /// call while one is running is a no-op, since macOS shows one prompt.
+    func activateInBackground() {
+        guard activation == nil else { return }
+        activation = Task { [weak self] in
+            await self?.activate()
+            self?.activation = nil
+        }
     }
 
     /// Re-read access state and the calendar list.

@@ -63,6 +63,66 @@ final class CalendarControllerTests: XCTestCase {
         XCTAssertEqual(source.eventsQueryCount, 0, "no access, no query")
     }
 
+    // MARK: - Launch
+
+    func testLaunchWithTheIntegrationOnReAsksAnUndeterminedGrant() async throws {
+        // The grant is keyed on the bundle identifier, so a changed one takes
+        // it back to not-determined while the switch stays on. Launch has to
+        // ask again, or matching stays silently empty.
+        let settings = try makeSettings()
+        settings.calendarIntegrationEnabled = true
+        let source = FakeCalendarSource()
+        source.calendarList = [CalendarInfo(id: "work", title: "Work", accountTitle: "Google")]
+        let controller = CalendarController(settings: settings, source: source)
+
+        await controller.activation?.value
+
+        XCTAssertEqual(source.requestCount, 1)
+        XCTAssertEqual(controller.authorization, .fullAccess)
+        XCTAssertEqual(controller.availableCalendars.map(\.id), ["work"])
+        XCTAssertNil(controller.activation, "the finished request is cleared")
+    }
+
+    func testLaunchWithAGrantedStoreDoesNotAsk() throws {
+        let settings = try makeSettings()
+        settings.calendarIntegrationEnabled = true
+        let source = FakeCalendarSource(authorization: .fullAccess)
+        _ = CalendarController(settings: settings, source: source)
+
+        XCTAssertEqual(source.requestCount, 0)
+    }
+
+    func testLaunchWithADeniedGrantDoesNotAsk() throws {
+        // macOS shows no prompt for a denied grant; Settings explains it.
+        let settings = try makeSettings()
+        settings.calendarIntegrationEnabled = true
+        let source = FakeCalendarSource(authorization: .denied)
+        let controller = CalendarController(settings: settings, source: source)
+
+        XCTAssertEqual(source.requestCount, 0)
+        XCTAssertNil(controller.activation)
+    }
+
+    func testLaunchWithTheIntegrationOffDoesNotAsk() throws {
+        let settings = try makeSettings()
+        let source = FakeCalendarSource()
+        _ = CalendarController(settings: settings, source: source)
+
+        XCTAssertEqual(source.requestCount, 0, "an off switch never prompts")
+    }
+
+    func testActivateInBackgroundRunsOneRequestAtATime() async throws {
+        let settings = try makeSettings()
+        let source = FakeCalendarSource()
+        let controller = CalendarController(settings: settings, source: source)
+
+        controller.activateInBackground()
+        controller.activateInBackground()
+        await controller.activation?.value
+
+        XCTAssertEqual(source.requestCount, 1, "macOS shows one prompt; the second call joins it")
+    }
+
     func testDisabledNeverQueriesTheStore() throws {
         let settings = try makeSettings()
         let source = FakeCalendarSource(authorization: .fullAccess)

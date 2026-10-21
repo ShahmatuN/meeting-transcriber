@@ -49,6 +49,8 @@ enum A11yID {
     static let recordOnlyBanner = "recordOnlyBanner"
     static let calendarSection = "calendarSection"
     static let calendarIntegrationToggle = "calendarIntegrationToggle"
+    static let calendarRequestAccessButton = "calendarRequestAccessButton"
+    static let calendarPrivacySettingsButton = "calendarPrivacySettingsButton"
     /// Per-calendar checkbox, addressed by ROW INDEX for the same reason as
     /// `consentDeniedAppRemove`: a calendar title can name an employer.
     static func calendarToggle(_ index: Int) -> String {
