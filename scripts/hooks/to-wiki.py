@@ -32,6 +32,9 @@ CLAUDE_TIMEOUT_SECONDS = 25 * 60
 ALLOWED_TOOLS = "Read Write Edit Glob Grep Bash(ls:*) Bash(wc:*) Bash(head:*) Bash(date:*)"
 # Only granted when the name was built without participants, see prompt_for.
 RENAME_TOOL = "Bash(mv:*)"
+# APFS and HFS+ cap a file name at 255 bytes of UTF-8; the stem budget leaves
+# room for ".md" and a " (NN)" collision suffix.
+MAX_STEM_BYTES = 255 - len(".md") - len(" (99)")
 
 
 def surname(participant: str) -> str:
@@ -51,10 +54,15 @@ def topic(title: str) -> str:
     return cleaned or "Meeting"
 
 
-def raw_name(date: str, owner: str, participants: list, title: str) -> str:
+def raw_name(date: str, owner: str, participants: list, title: str) -> tuple:
     """The raw/ file name, without extension, by the wiki's convention:
     one other person is a 1-1 named after them, several are listed by surname
-    with the topic, nobody named is filed under the owner's full name."""
+    with the topic, nobody named is filed under the owner's full name.
+
+    Returns the stem and how many surnames were left out of it: a name is a
+    file name, and a company-wide call (36 invitees measured) builds one that
+    no filesystem accepts, so surnames are dropped from the end until the stem
+    fits MAX_STEM_BYTES. The topic stays, since it is what the file is found by."""
     owner_first = owner.split()[0]
     owner_last = owner.split()[-1].lower()
     others = []
@@ -63,10 +71,15 @@ def raw_name(date: str, owner: str, participants: list, title: str) -> str:
         if name and name.lower() != owner_last and name not in others:
             others.append(name)
     if not others:
-        return f"{date} {owner} - {topic(title)}"
+        return f"{date} {owner} - {topic(title)}", 0
     if len(others) == 1:
-        return f"{date} {owner_first} {others[0]} - 1-1"
-    return f"{date} {owner_first} {' '.join(others)} - {topic(title)}"
+        return f"{date} {owner_first} {others[0]} - 1-1", 0
+    kept = list(others)
+    stem = f"{date} {owner_first} {' '.join(kept)} - {topic(title)}"
+    while len(stem.encode()) > MAX_STEM_BYTES and len(kept) > 1:
+        kept.pop()
+        stem = f"{date} {owner_first} {' '.join(kept)} - {topic(title)}"
+    return stem, len(others) - len(kept)
 
 
 def unique_path(raw_dir: Path, stem: str) -> Path:
@@ -91,20 +104,27 @@ def find_claude() -> str:
     return str(fallback) if fallback.exists() else ""
 
 
-def prompt_for(relative: str, may_rename: bool) -> str:
+def prompt_for(relative: str, may_rename: bool, dropped: int = 0, participants: list = ()) -> str:
     """With no participants known the name carries only the app's title (often
     a bare `Google Meet abc-defg-hij`), so the model, which has read the
-    transcript, may rename the file by the convention. Content stays as is."""
+    transcript, may rename the file by the convention. Content stays as is.
+    When the name could not hold every participant, the full list travels in
+    the prompt instead, so the model still knows who was invited."""
     rename = (
         "Участники встречи приложению неизвестны, поэтому имя файла собрано из названия окна. "
         "Если по содержанию понятны участники или тема, переименуй файл через `mv` по конвенции "
         "`raw/` из скилла (не перезаписывая существующий файл) и дальше работай с новым именем. "
         if may_rename else ""
     )
+    truncated = (
+        f"В имя файла не поместились {dropped} фамилий; "
+        f"полный список приглашённых: {', '.join(participants)}. "
+        if dropped else ""
+    )
     return (
         f"Новый транскрипт встречи уже сохранён байт-в-байт в `{relative}`: фаза 1 скилла "
         "meeting-to-wiki выполнена, содержимое этого файла не меняй, кроме маркера processed в фазе 3. "
-        + rename +
+        + rename + truncated +
         "Выполни по скиллу meeting-to-wiki фазы 2 и 3 для этого файла. Пользователя рядом нет: "
         "ничего не спрашивай, решения, принятые за пользователя, перечисли в отчёте. "
         "Последней строкой ответа выведи одну строку, которая начинается с «ИТОГ:», "
@@ -132,7 +152,7 @@ def main() -> int:
 
     participants = [p for p in os.environ.get("MT_PARTICIPANTS", "").splitlines() if p.strip()]
     date = os.environ.get("MT_DATE", "")
-    stem = raw_name(date, owner, participants, os.environ.get("MT_TITLE", ""))
+    stem, dropped = raw_name(date, owner, participants, os.environ.get("MT_TITLE", ""))
     may_rename = stem.startswith(f"{date} {owner} - ")
     target = unique_path(raw_dir, stem)
     shutil.copyfile(transcript, target)
@@ -149,7 +169,7 @@ def main() -> int:
         return fail(f"{relative} saved, wiki not processed: claude not found")
     try:
         result = subprocess.run(
-            [claude, "-p", prompt_for(relative, may_rename),
+            [claude, "-p", prompt_for(relative, may_rename, dropped, participants),
              "--permission-mode", "acceptEdits",
              "--allowedTools", f"{ALLOWED_TOOLS} {RENAME_TOOL}" if may_rename else ALLOWED_TOOLS],
             cwd=wiki_dir, capture_output=True, text=True, timeout=CLAUDE_TIMEOUT_SECONDS,
