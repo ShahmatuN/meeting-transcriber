@@ -32,9 +32,12 @@ CLAUDE_TIMEOUT_SECONDS = 25 * 60
 ALLOWED_TOOLS = "Read Write Edit Glob Grep Bash(ls:*) Bash(wc:*) Bash(head:*) Bash(date:*)"
 # Only granted when the name was built without participants, see prompt_for.
 RENAME_TOOL = "Bash(mv:*)"
-# APFS and HFS+ cap a file name at 255 bytes of UTF-8; the stem budget leaves
-# room for ".md" and a " (NN)" collision suffix.
-MAX_STEM_BYTES = 255 - len(".md") - len(" (99)")
+# APFS caps a file name at 255 bytes of UTF-8, but the file also has to be
+# editable by the tools of the headless run that processes it: Claude Code's
+# Edit wrote a 249-byte name's marker through a longer temporary name and
+# failed with ENAMETOOLONG, while a 211-byte name went through. 200 bytes
+# for the stem leaves room for ".md", a " (NN)" collision suffix and that.
+MAX_STEM_BYTES = 200
 
 
 def surname(participant: str) -> str:
