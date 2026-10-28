@@ -513,14 +513,7 @@ extension PipelineQueue {
         with normalizer: TerminologyNormalizer,
     ) -> [TimestampedSegment] {
         guard !normalizer.isEmpty else { return segments }
-        return segments.map { segment in
-            TimestampedSegment(
-                start: segment.start,
-                end: segment.end,
-                text: normalizer.normalize(segment.text),
-                speaker: segment.speaker,
-            )
-        }
+        return segments.map { $0.normalized(with: normalizer) }
     }
 
     /// Stage 2 — optional speaker diarization. Returns the transcript with
