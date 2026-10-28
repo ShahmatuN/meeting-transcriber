@@ -55,14 +55,14 @@ run "Product/Wallet: sync" "$(printf 'a.toporov\nEvgeniy Zhiltsov\nИрина Р
     || fail "group name: $(ls "$WIKI/raw")"
 PASSED=$((PASSED + 1))
 
-# A company-wide call: the name keeps as many surnames as fit 255 bytes
+# A company-wide call: the name keeps as many surnames as fit the byte budget
 # (measured in UTF-8, so a Cyrillic surname counts double), keeps the topic,
 # and the prompt carries the surnames the name could not.
 many="$(printf 'Иван Разумовский\n'; for i in $(seq 1 35); do printf 'p.participant%02d\n' "$i"; done)"
 out="$(run "QA monthly talks" "$many" "$TMPD/claude-ok")"
 big="$(ls "$WIKI/raw" | grep 'QA monthly talks.md')"
 [ -n "$big" ] || fail "company-wide call not saved: $(ls "$WIKI/raw")"
-[ "$(printf '%s' "$big" | wc -c)" -le 255 ] || fail "name over 255 bytes: $big"
+[ "$(printf '%s' "$big" | wc -c)" -le 203 ] || fail "name over the budget: $big"
 printf '%s' "$big" | grep -q "^2026-10-13 Evgeniy Разумовский Participant01 " || fail "surnames not kept in order: $big"
 printf '%s' "$big" | grep -q "Participant35" && fail "nothing dropped from a 36-name list: $big"
 printf '%s' "$out" | grep -q "не поместились [0-9]* фамилий" || fail "prompt does not say surnames were dropped: $out"
